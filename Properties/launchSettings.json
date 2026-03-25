@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "LlamaCppDesk (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "LlamaCppDesk (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

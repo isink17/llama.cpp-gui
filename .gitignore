@@ -1,0 +1,47 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+publish/
+artifacts/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# Test and coverage results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# Logs and diagnostics
+*.log
+*.tmp
+*.temp
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local tooling artifacts
+codegraph.sqlite
+codegraph.sqlite-shm
+codegraph.sqlite-wal
