@@ -12,25 +12,27 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
 
-            <SolidColorBrush x:Key="UserBubbleBrush" Color="#1E6EDB" />
-            <SolidColorBrush x:Key="AssistantBubbleBrush" Color="#30343C" />
+            <SolidColorBrush x:Key="UserBubbleBrush" Color="#0A66C2" />
+            <SolidColorBrush x:Key="AssistantBubbleBrush" Color="#1F2937" />
 
             <Style x:Key="SidebarSectionTitle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontSize" Value="13" />
                 <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Opacity" Value="0.8" />
-                <Setter Property="Margin" Value="0,16,0,6" />
+                <Setter Property="Opacity" Value="0.82" />
+                <Setter Property="Margin" Value="0,14,0,4" />
             </Style>
 
             <Style x:Key="FormTextBox" TargetType="TextBox">
-                <Setter Property="Margin" Value="0,0,0,8" />
-                <Setter Property="CornerRadius" Value="8" />
-                <Setter Property="Padding" Value="10,8" />
+                <Setter Property="Margin" Value="0,0,0,10" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="10,9" />
+                <Setter Property="MinHeight" Value="40" />
             </Style>
 
             <Style x:Key="PrimaryAction" TargetType="Button">
-                <Setter Property="CornerRadius" Value="8" />
-                <Setter Property="Padding" Value="14,8" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="14,9" />
+                <Setter Property="MinHeight" Value="38" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>
