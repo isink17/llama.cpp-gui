@@ -145,3 +145,74 @@ fn validate_history_entry(entry: &HistoryEntry) -> Result<(), String> {
         _ => Err("history.role must be one of: system, user, assistant".to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        validate_history_entry, validate_preset, validate_settings, MAX_TEMPERATURE,
+        MAX_TOKENS_LIMIT,
+    };
+    use crate::core::models::{HistoryEntry, Preset, Settings};
+
+    #[test]
+    fn accepts_valid_settings() {
+        let settings = Settings {
+            server_url: "http://127.0.0.1:8080".to_string(),
+            max_tokens: 1024,
+            temperature: 0.8,
+        };
+        assert!(validate_settings(&settings).is_ok());
+    }
+
+    #[test]
+    fn rejects_invalid_settings() {
+        let empty_url = Settings {
+            server_url: "".to_string(),
+            max_tokens: 1024,
+            temperature: 0.8,
+        };
+        assert!(validate_settings(&empty_url).is_err());
+
+        let bad_tokens = Settings {
+            server_url: "http://127.0.0.1:8080".to_string(),
+            max_tokens: MAX_TOKENS_LIMIT + 1,
+            temperature: 0.8,
+        };
+        assert!(validate_settings(&bad_tokens).is_err());
+
+        let bad_temp = Settings {
+            server_url: "http://127.0.0.1:8080".to_string(),
+            max_tokens: 512,
+            temperature: MAX_TEMPERATURE + 0.1,
+        };
+        assert!(validate_settings(&bad_temp).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_preset() {
+        let preset = Preset {
+            id: "".to_string(),
+            name: "Preset".to_string(),
+            system_prompt: "You are helpful.".to_string(),
+            created_at: "2026-03-26T12:00:00Z".to_string(),
+        };
+        assert!(validate_preset(&preset).is_err());
+    }
+
+    #[test]
+    fn accepts_and_rejects_history_roles() {
+        let valid = HistoryEntry {
+            id: "h1".to_string(),
+            role: "assistant".to_string(),
+            content: "Hi".to_string(),
+            timestamp: "2026-03-26T12:00:00Z".to_string(),
+        };
+        assert!(validate_history_entry(&valid).is_ok());
+
+        let invalid = HistoryEntry {
+            role: "bot".to_string(),
+            ..valid
+        };
+        assert!(validate_history_entry(&invalid).is_err());
+    }
+}
