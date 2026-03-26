@@ -1,8 +1,11 @@
 import { tauriBridge } from './lib/tauri';
 import {
+  appendHistory as appendHistoryCommand,
   cancelChatStream as cancelChatStreamCommand,
   cancelDownload as cancelDownloadCommand,
+  clearHistory as clearHistoryCommand,
   clearLlamaServerLogs,
+  deletePreset as deletePresetCommand,
   getChatStreamStatuses,
   getDownloadStatuses,
   getHistory,
@@ -11,6 +14,7 @@ import {
   getLlamaServerHealth,
   getPresets,
   getSettings,
+  savePreset as savePresetCommand,
   saveSettings as saveSettingsCommand,
   startChatStream as startChatStreamCommand,
   startDownload as startDownloadCommand,
@@ -19,31 +23,13 @@ import {
   type ChatStreamEvent,
   type ChatStreamStatus,
   type DownloadStatus,
+  type HistoryEntry,
   type LlamaProcessStatus,
+  type LlamaServerHealthStatus,
+  type Preset,
   type Settings,
 } from './lib/tauri/api';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
-type LlamaServerHealthStatus = {
-  healthy: boolean;
-  statusCode?: number | null;
-  message?: string | null;
-  url: string;
-};
-
-type Preset = {
-  id: string;
-  name: string;
-  systemPrompt: string;
-  createdAt: string;
-};
-
-type HistoryEntry = {
-  id: string;
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-};
 
 const LOG_LIMIT = 200;
 const REFRESH_INTERVAL_MS = 4000;
@@ -194,7 +180,7 @@ function App() {
         createdAt: presetDraft.createdAt.trim() || new Date().toISOString(),
       };
 
-      const next = await tauriBridge.invokeCommand<Preset[]>('save_preset', {
+      const next = await savePresetCommand({
         preset: payload,
       });
       setPresets(next);
@@ -207,7 +193,7 @@ function App() {
 
   const deletePreset = async (presetId: string) => {
     try {
-      const next = await tauriBridge.invokeCommand<Preset[]>('delete_preset', {
+      const next = await deletePresetCommand({
         presetId,
       });
       setPresets(next);
@@ -234,10 +220,7 @@ function App() {
         content,
         timestamp: new Date().toISOString(),
       };
-      const next = await tauriBridge.invokeCommand<HistoryEntry[]>(
-        'append_history',
-        { entry },
-      );
+      const next = await appendHistoryCommand({ entry });
       setHistoryEntries(next);
       setHistoryContent('');
       setMessage('History entry added.');
@@ -248,7 +231,7 @@ function App() {
 
   const clearHistory = async () => {
     try {
-      await tauriBridge.invokeCommand('clear_history');
+      await clearHistoryCommand();
       setHistoryEntries([]);
       setMessage('History cleared.');
     } catch (error) {
