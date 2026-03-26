@@ -90,7 +90,7 @@ jobs:
         with:
           name: smoke-checks-diagnostics
           path: smoke-checks.log
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Fail smoke checks
         if: steps.smoke.outcome == 'failure'
@@ -184,7 +184,7 @@ jobs:
         with:
           name: smoke-checks-diagnostics-${{ matrix.os }}
           path: smoke-checks-${{ matrix.os }}.log
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Fail smoke checks (Unix)
         if: runner.os != 'Windows' && steps.smoke_unix.outcome == 'failure'
@@ -206,7 +206,7 @@ jobs:
         with:
           name: smoke-checks-diagnostics-${{ matrix.os }}
           path: smoke-checks-${{ matrix.os }}.log
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Fail smoke checks (Windows)
         if: runner.os == 'Windows' && steps.smoke_windows.outcome == 'failure'
