@@ -43,3 +43,31 @@ pub struct LlamaProcessStatus {
     pub pid: Option<u32>,
     pub last_exit_code: Option<i32>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DownloadState {
+    Downloading,
+    Completed,
+    Cancelled,
+    Failed,
+}
+
+impl DownloadState {
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Cancelled | Self::Failed)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadStatus {
+    pub download_id: String,
+    pub source_url: String,
+    pub destination_path: String,
+    pub state: DownloadState,
+    pub bytes_downloaded: u64,
+    pub total_bytes: Option<u64>,
+    pub percent_complete: Option<f64>,
+    pub error: Option<String>,
+}
