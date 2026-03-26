@@ -47,7 +47,7 @@ Status key:
 ## Packaging and Delivery
 
 - [-] CI validates the migration path on Windows/Linux/macOS
-- [ ] Artifact naming is stable and documented
+- [-] Artifact naming is stable and documented
 - [ ] Tag-trigger release publishing validated
 
 ## Notes
@@ -56,3 +56,4 @@ Status key:
 - Link issue IDs near completed items when useful.
 - Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, cross-platform validation coverage, and smoke scripts; parity is still in progress.
 - Error-handling work now distinguishes timeout, unavailable, and other health failures in the backend and surfaces a clearer refresh failure state in the UI.
+- Release workflow now derives a stable tag-based artifact name and shared release paths before upload/publish steps.

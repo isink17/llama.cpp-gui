@@ -24,6 +24,7 @@ This folder tracks migration progress from the current WinUI app to the Tauri mu
 ## Progress Notes
 
 - Migration CI now includes smoke logging plus a cross-platform validation matrix for Linux, macOS, and Windows.
+- Tag releases now derive a stable artifact name from `LlamaCppDesk-win-x64-<tag-suffix>` and reuse the same derived paths through package/upload/release steps.
 - Health and refresh failure handling now distinguishes timeout, unavailable, and other error cases more clearly in the backend and UI.
 
 ## Current Wiring Snapshot
