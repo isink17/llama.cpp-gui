@@ -101,6 +101,17 @@ const getFailureDetailClass = (kind: FailureKind) => {
   }
 };
 
+const buildFailureView = (message: string) => {
+  const kind = classifyFailureMessage(message);
+
+  return {
+    kind,
+    label: getFailureLabel(kind),
+    tone: getFailureTone(kind),
+    detailClass: getFailureDetailClass(kind),
+  };
+};
+
 const getToneForState = (value: string) => {
   switch (value.toLowerCase()) {
     case 'running':
@@ -543,23 +554,19 @@ function App() {
         ? 'success'
         : 'neutral';
   const refreshStatusLabel = refreshIssue ? 'Refresh failed' : 'Sync live';
-  const refreshStatusKind = refreshIssue
-    ? classifyFailureMessage(refreshIssue)
-    : null;
-  const refreshStatusTone = refreshStatusKind
-    ? getFailureTone(refreshStatusKind)
-    : 'success';
+  const refreshFailureView = refreshIssue ? buildFailureView(refreshIssue) : null;
+  const refreshStatusTone = refreshFailureView ? refreshFailureView.tone : 'success';
   const refreshStatusHint = refreshIssue
     ? refreshIssue
     : 'Auto-refresh polling is active.';
-  const processHealthFailureKind =
+  const processHealthFailureView =
     processHealth && !processHealth.healthy && processHealth.message
-      ? classifyFailureMessage(processHealth.message)
+      ? buildFailureView(processHealth.message)
       : null;
   const processHealthDetailTone = processHealth?.healthy
     ? 'success'
-    : processHealthFailureKind
-      ? getFailureTone(processHealthFailureKind)
+    : processHealthFailureView
+      ? processHealthFailureView.tone
       : 'danger';
   const isRefreshing = isBusy('refresh');
   const isSavingSettings = isBusy('saveSettings');
@@ -651,14 +658,10 @@ function App() {
             </span>
             <span className="hint">{refreshStatusHint}</span>
           </div>
-          {refreshIssue ? (
-            <div
-              className={`status-detail ${getFailureDetailClass(
-                refreshStatusKind ?? 'failure',
-              )}`}
-            >
-              <span className={`status-badge ${refreshStatusTone}`}>
-                {getFailureLabel(refreshStatusKind ?? 'failure')}
+          {refreshFailureView ? (
+            <div className={`status-detail ${refreshFailureView.detailClass}`}>
+              <span className={`status-badge ${refreshFailureView.tone}`}>
+                {refreshFailureView.label}
               </span>
               <p className="status-detail-text">{refreshIssue}</p>
             </div>
@@ -693,14 +696,14 @@ function App() {
             </div>
             {processHealth?.message ? (
               <div
-                className={`status-detail ${getFailureDetailClass(
-                  processHealthFailureKind ?? 'failure',
-                )}`}
+                className={`status-detail ${
+                  processHealthFailureView?.detailClass ?? 'failure'
+                }`}
               >
                 <span className={`status-badge ${processHealthDetailTone}`}>
                   {processHealth.healthy
                     ? 'Service responding'
-                    : getFailureLabel(processHealthFailureKind ?? 'failure')}
+                    : processHealthFailureView?.label ?? 'Failure'}
                 </span>
                 <p className="status-detail-text">{processHealth.message}</p>
               </div>
@@ -928,58 +931,59 @@ function App() {
             {isStartingDownload ? 'Starting...' : 'Start download'}
           </button>
           <ul>
-            {downloads.map((item) => (
-              <li key={item.downloadId}>
-                <div className="status-summary">
-                  <span className={`status-badge ${getToneForState(item.state)}`}>
-                    {formatStatusLabel(item.state)}
-                  </span>
-                  <strong>{item.downloadId}</strong>
-                </div>
-                {item.state === 'failed' || item.error ? (
-                  <div
-                    className={`status-detail ${getFailureDetailClass(
-                      item.error ? classifyFailureMessage(item.error) : 'failure',
-                    )}`}
-                  >
-                    <span
-                      className={`status-badge ${
-                        item.error
-                          ? getFailureTone(classifyFailureMessage(item.error))
-                          : 'danger'
-                      }`}
-                    >
-                      {item.error
-                        ? getFailureLabel(classifyFailureMessage(item.error))
-                        : 'Failure'}
+              {downloads.map((item) => (
+                <li key={item.downloadId}>
+                  <div className="status-summary">
+                    <span className={`status-badge ${getToneForState(item.state)}`}>
+                      {formatStatusLabel(item.state)}
                     </span>
-                    <p className="status-detail-text">
-                      {item.error ?? 'The download ended in a failed state.'}
-                    </p>
+                    <strong>{item.downloadId}</strong>
                   </div>
-                ) : null}
-                {item.sourceUrl ? <div className="hint">{item.sourceUrl}</div> : null}
-                {item.destinationPath ? (
-                  <div className="hint">{item.destinationPath}</div>
-                ) : null}
-                <div className="hint">
-                  {item.percentComplete !== null &&
-                  item.percentComplete !== undefined
-                    ? `${item.percentComplete.toFixed(1)}%`
-                    : 'Progress unavailable'}
-                </div>
-                <div className="row">
-                  <button
-                    onClick={() => void cancelDownload(item.downloadId)}
-                    disabled={isCancellingDownload(item.downloadId)}
-                  >
-                    {isCancellingDownload(item.downloadId)
-                      ? 'Cancelling...'
-                      : 'Cancel'}
-                  </button>
-                </div>
-              </li>
-            ))}
+                  {item.state === 'failed' || item.error ? (
+                    (() => {
+                      const failureView = item.error
+                        ? buildFailureView(item.error)
+                        : {
+                            kind: 'failure' as const,
+                            label: 'Failure',
+                            tone: 'danger',
+                            detailClass: 'failure',
+                          };
+
+                      return (
+                        <div className={`status-detail ${failureView.detailClass}`}>
+                          <span className={`status-badge ${failureView.tone}`}>
+                            {failureView.label}
+                          </span>
+                          <p className="status-detail-text">
+                            {item.error ?? 'The download ended in a failed state.'}
+                          </p>
+                        </div>
+                      );
+                    })()
+                  ) : null}
+                  {item.sourceUrl ? <div className="hint">{item.sourceUrl}</div> : null}
+                  {item.destinationPath ? (
+                    <div className="hint">{item.destinationPath}</div>
+                  ) : null}
+                  <div className="hint">
+                    {item.percentComplete !== null &&
+                    item.percentComplete !== undefined
+                      ? `${item.percentComplete.toFixed(1)}%`
+                      : 'Progress unavailable'}
+                  </div>
+                  <div className="row">
+                    <button
+                      onClick={() => void cancelDownload(item.downloadId)}
+                      disabled={isCancellingDownload(item.downloadId)}
+                    >
+                      {isCancellingDownload(item.downloadId)
+                        ? 'Cancelling...'
+                        : 'Cancel'}
+                    </button>
+                  </div>
+                </li>
+              ))}
           </ul>
         </article>
 
@@ -1024,48 +1028,48 @@ function App() {
             </div>
             <div className="entry-list">
               {chatStatuses.length ? (
-                chatStatuses.map((status) => (
-                  <article className="entry-card" key={status.streamId}>
-                    <div className="entry-card-header">
-                      <div className="status-summary">
-                        <span
-                          className={`status-badge ${getToneForState(status.state)}`}
-                        >
-                          {formatStatusLabel(status.state)}
-                        </span>
-                        <strong>{status.model}</strong>
+                chatStatuses.map((status) => {
+                  const failureView =
+                    status.error || status.state === 'failed'
+                      ? status.error
+                        ? buildFailureView(status.error)
+                        : {
+                            kind: 'failure' as const,
+                            label: 'Failure',
+                            tone: 'danger',
+                            detailClass: 'failure',
+                          }
+                      : null;
+
+                  return (
+                    <article className="entry-card" key={status.streamId}>
+                      <div className="entry-card-header">
+                        <div className="status-summary">
+                          <span
+                            className={`status-badge ${getToneForState(status.state)}`}
+                          >
+                            {formatStatusLabel(status.state)}
+                          </span>
+                          <strong>{status.model}</strong>
+                        </div>
+                        <div className="hint">{status.streamId}</div>
                       </div>
-                      <div className="hint">{status.streamId}</div>
-                    </div>
-                    <div className="hint">
-                      Bytes received: {status.bytesReceived.toLocaleString()}
-                    </div>
-                    {status.error || status.state === 'failed' ? (
-                      <div
-                        className={`status-detail ${getFailureDetailClass(
-                          status.error
-                            ? classifyFailureMessage(status.error)
-                            : 'failure',
-                        )}`}
-                      >
-                        <span
-                          className={`status-badge ${
-                            status.error
-                              ? getFailureTone(classifyFailureMessage(status.error))
-                              : 'danger'
-                          }`}
-                        >
-                          {status.error
-                            ? getFailureLabel(classifyFailureMessage(status.error))
-                            : 'Failure'}
-                        </span>
-                        <p className="status-detail-text">
-                          {status.error ?? 'The stream ended in a failed state.'}
-                        </p>
+                      <div className="hint">
+                        Bytes received: {status.bytesReceived.toLocaleString()}
                       </div>
-                    ) : null}
-                  </article>
-                ))
+                      {failureView ? (
+                        <div className={`status-detail ${failureView.detailClass}`}>
+                          <span className={`status-badge ${failureView.tone}`}>
+                            {failureView.label}
+                          </span>
+                          <p className="status-detail-text">
+                            {status.error ?? 'The stream ended in a failed state.'}
+                          </p>
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })
               ) : (
                 <p className="empty-state">No chat streams tracked yet.</p>
               )}
