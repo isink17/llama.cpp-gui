@@ -34,8 +34,25 @@ jobs:
           components: rustfmt
 
       - name: Run smoke checks
+        id: smoke
         shell: bash
-        run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check 2>&1 | tee smoke-checks.log
+
+      - name: Upload smoke diagnostics
+        if: steps.smoke.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-checks-diagnostics
+          path: smoke-checks.log
+          if-no-files-found: error
+
+      - name: Fail smoke checks
+        if: steps.smoke.outcome == 'failure'
+        shell: bash
+        run: exit 1
 
       - name: Cargo check
         working-directory: src-tauri
