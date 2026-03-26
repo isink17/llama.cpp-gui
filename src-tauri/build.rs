@@ -38,7 +38,10 @@ fn ensure_icon_ico() -> Result<(), String> {
 
     fs::write(&icon_ico, ico_bytes)
         .map_err(|err| format!("failed to write {}: {err}", icon_ico.display()))?;
-    println!("cargo:warning=generated fallback icon at {}", icon_ico.display());
+    println!(
+        "cargo:warning=generated fallback icon at {}",
+        icon_ico.display()
+    );
     Ok(())
 }
 
