@@ -34,8 +34,8 @@ jobs:
           components: rustfmt
 
       - name: Run smoke checks
-        shell: pwsh
-        run: ./tests/smoke/Invoke-SmokeChecks.ps1 -SkipPrereqCheck
+        shell: bash
+        run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check
 
       - name: Cargo check
         working-directory: src-tauri
