@@ -6,9 +6,24 @@ on:
       - "v*"
       - "*"
 
+permissions:
+  contents: write
+
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    name: Build and validate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            publish: true
+          - os: ubuntu-24.04
+            publish: false
+          - os: macos-15
+            publish: false
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -23,9 +38,11 @@ jobs:
         run: dotnet restore LlamaCppDesk.csproj
 
       - name: Build
+        if: matrix.publish
         run: dotnet build LlamaCppDesk.csproj -c Release -p:Platform=x64 --no-restore
 
       - name: Publish EXE
+        if: matrix.publish
         run: >
           dotnet publish LlamaCppDesk.csproj
           -c Release
@@ -38,6 +55,7 @@ jobs:
           --no-build
 
       - name: Package artifact
+        if: matrix.publish
         shell: pwsh
         run: |
           $publishDir = "bin/Release/net10.0-windows10.0.19041.0/win-x64/publish"
@@ -47,6 +65,7 @@ jobs:
           Write-Output "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
 
       - name: Upload workflow artifact
+        if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
           name: LlamaCppDesk-win-x64-${{ github.ref_name }}
@@ -56,6 +75,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release Asset
+        if: matrix.publish
         uses: softprops/action-gh-release@v2
         with:
           files: |
