@@ -19,3 +19,9 @@
 3. Implement only issue scope.
 4. Open PR to `feature/multiplatform_support` and link issue.
 5. Rebase/merge with latest integration branch before final review.
+
+## Migration Docs
+
+- Process runbook: `docs/migration/runbook.md`
+- Parity tracker: `docs/migration/parity-checklist.md`
+- Smoke baseline: `tests/smoke/smoke-checklist.md`
