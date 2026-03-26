@@ -43,6 +43,33 @@ const formatTimestamp = (value: string) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
 
+const formatStatusLabel = (value: string) =>
+  value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+const getToneForState = (value: string) => {
+  switch (value.toLowerCase()) {
+    case 'running':
+    case 'streaming':
+    case 'completed':
+    case 'healthy':
+      return 'success';
+    case 'downloading':
+      return 'info';
+    case 'cancelled':
+    case 'stopped':
+    case 'idle':
+    case 'not checked':
+      return 'neutral';
+    case 'failed':
+    case 'unhealthy':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+};
+
 function App() {
   const [settings, setSettings] = useState<Settings>({
     serverUrl: 'http://127.0.0.1:8080',
@@ -57,6 +84,7 @@ function App() {
   const [processHealth, setProcessHealth] =
     useState<LlamaServerHealthStatus | null>(null);
   const [processHealthBusy, setProcessHealthBusy] = useState(false);
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
 
   const [downloadUrl, setDownloadUrl] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
@@ -115,6 +143,8 @@ function App() {
       setHistoryEntries(loadedHistory);
     } catch (error) {
       setMessage(String(error));
+    } finally {
+      setLastRefreshAt(new Date().toISOString());
     }
   }, []);
 
@@ -359,6 +389,30 @@ function App() {
       ? 'healthy'
       : 'unhealthy'
     : 'idle';
+  const processBadgeLabel = processStatus.running
+    ? 'Running'
+    : processStatus.lastExitCode !== undefined &&
+        processStatus.lastExitCode !== null
+      ? `Exited ${processStatus.lastExitCode}`
+      : 'Stopped';
+  const processBadgeTone = processStatus.running
+    ? 'success'
+    : processStatus.lastExitCode !== undefined &&
+        processStatus.lastExitCode !== null
+      ? 'danger'
+      : 'neutral';
+  const chatSummaryLabel = activeStream
+    ? `Streaming ${activeStream.model}`
+    : chatStatuses.length
+      ? 'Idle'
+      : 'No streams';
+  const chatSummaryTone = activeStream
+    ? 'info'
+    : chatStatuses.some((item) => item.state === 'failed')
+      ? 'danger'
+      : chatStatuses.some((item) => item.state === 'completed')
+        ? 'success'
+        : 'neutral';
 
   return (
     <main className="app-shell">
@@ -366,6 +420,12 @@ function App() {
         <div>
           <p className="eyebrow">Migration item #n6</p>
           <h1>LlamaCppDesk Tauri control panel</h1>
+          <div className="header-meta">
+            <span className="hint">
+              Last refresh:{' '}
+              {lastRefreshAt ? formatTimestamp(lastRefreshAt) : 'Waiting...'}
+            </span>
+          </div>
         </div>
         <button onClick={() => void refreshAll()}>Refresh</button>
       </header>
@@ -414,10 +474,12 @@ function App() {
 
         <article className="card">
           <h2>llama-server</h2>
-          <p>
-            Status: {processStatus.running ? 'Running' : 'Stopped'} (pid:{' '}
-            {processStatus.pid ?? '-'})
-          </p>
+          <div className="status-summary">
+            <span className={`status-badge ${processBadgeTone}`}>
+              {processBadgeLabel}
+            </span>
+            <span className="hint">PID {processStatus.pid ?? '-'}</span>
+          </div>
           <div className="health-panel">
             <div className="panel-header">
               <h3>Health</h3>
@@ -628,6 +690,12 @@ function App() {
 
         <article className="card">
           <h2>Downloader</h2>
+          <div className="status-summary">
+            <span className="status-badge neutral">
+              {downloads.length ? `${downloads.length} tracked` : 'No downloads'}
+            </span>
+            <span className="hint">State updates refresh automatically</span>
+          </div>
           <label>
             Source URL
             <input
@@ -646,13 +714,30 @@ function App() {
           <ul>
             {downloads.map((item) => (
               <li key={item.downloadId}>
-                <strong>{item.downloadId}</strong> {item.state}{' '}
-                {item.percentComplete !== null && item.percentComplete !== undefined
-                  ? `(${item.percentComplete.toFixed(1)}%)`
-                  : ''}
-                <button onClick={() => void cancelDownload(item.downloadId)}>
-                  Cancel
-                </button>
+                <div className="status-summary">
+                  <span className={`status-badge ${getToneForState(item.state)}`}>
+                    {formatStatusLabel(item.state)}
+                  </span>
+                  <strong>{item.downloadId}</strong>
+                </div>
+                {item.state === 'failed' && item.error ? (
+                  <div className="hint">{item.error}</div>
+                ) : null}
+                {item.sourceUrl ? <div className="hint">{item.sourceUrl}</div> : null}
+                {item.destinationPath ? (
+                  <div className="hint">{item.destinationPath}</div>
+                ) : null}
+                <div className="hint">
+                  {item.percentComplete !== null &&
+                  item.percentComplete !== undefined
+                    ? `${item.percentComplete.toFixed(1)}%`
+                    : 'Progress unavailable'}
+                </div>
+                <div className="row">
+                  <button onClick={() => void cancelDownload(item.downloadId)}>
+                    Cancel
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -660,6 +745,12 @@ function App() {
 
         <article className="card chat-card">
           <h2>Chat stream</h2>
+          <div className="status-summary">
+            <span className={`status-badge ${chatSummaryTone}`}>
+              {chatSummaryLabel}
+            </span>
+            <span className="hint">{chatStatuses.length} tracked</span>
+          </div>
           <label>
             Model
             <input
@@ -678,6 +769,37 @@ function App() {
           <div className="row">
             <button onClick={() => void startChat()}>Start stream</button>
             <button onClick={() => void cancelChat()}>Cancel stream</button>
+          </div>
+          <div className="panel">
+            <div className="panel-header">
+              <h3>Stream statuses</h3>
+              <span className="hint">Live refresh updates</span>
+            </div>
+            <div className="entry-list">
+              {chatStatuses.length ? (
+                chatStatuses.map((status) => (
+                  <article className="entry-card" key={status.streamId}>
+                    <div className="entry-card-header">
+                      <div className="status-summary">
+                        <span
+                          className={`status-badge ${getToneForState(status.state)}`}
+                        >
+                          {formatStatusLabel(status.state)}
+                        </span>
+                        <strong>{status.model}</strong>
+                      </div>
+                      <div className="hint">{status.streamId}</div>
+                    </div>
+                    <div className="hint">
+                      Bytes received: {status.bytesReceived.toLocaleString()}
+                    </div>
+                    {status.error ? <p>{status.error}</p> : null}
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">No chat streams tracked yet.</p>
+              )}
+            </div>
           </div>
           <pre>{chatLog.join('')}</pre>
         </article>
