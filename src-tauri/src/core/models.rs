@@ -35,3 +35,11 @@ pub struct HistoryEntry {
     pub content: String,
     pub timestamp: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlamaProcessStatus {
+    pub running: bool,
+    pub pid: Option<u32>,
+    pub last_exit_code: Option<i32>,
+}
