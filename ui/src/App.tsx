@@ -5,8 +5,11 @@ import {
   clearLlamaServerLogs,
   getChatStreamStatuses,
   getDownloadStatuses,
+  getHistory,
   getLlamaServerLogs,
   getLlamaServerStatus,
+  getLlamaServerHealth,
+  getPresets,
   getSettings,
   saveSettings as saveSettingsCommand,
   startChatStream as startChatStreamCommand,
@@ -114,8 +117,8 @@ function App() {
         getDownloadStatuses(),
         getChatStreamStatuses(),
         getLlamaServerLogs({ limit: LOG_LIMIT }),
-        tauriBridge.invokeCommand<Preset[]>('get_presets'),
-        tauriBridge.invokeCommand<HistoryEntry[]>('get_history'),
+        getPresets(),
+        getHistory(),
       ]);
       setSettings(loadedSettings);
       setProcessStatus(loadedProcess);
@@ -352,10 +355,9 @@ function App() {
   const checkProcessHealth = async () => {
     setProcessHealthBusy(true);
     try {
-      const health = await tauriBridge.invokeCommand<LlamaServerHealthStatus>(
-        'check_llama_server_health',
-        { url: `${settings.serverUrl.replace(/\/$/, '')}/health` },
-      );
+      const health = await getLlamaServerHealth({
+        url: `${settings.serverUrl.replace(/\/$/, '')}/health`,
+      });
       setProcessHealth(health);
     } catch (error) {
       setMessage(String(error));

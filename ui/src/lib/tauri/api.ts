@@ -12,6 +12,29 @@ export type LlamaProcessStatus = {
   lastExitCode?: number | null;
 };
 
+export type LlamaServerHealthStatus = {
+  healthy: boolean;
+  statusCode?: number | null;
+  message?: string | null;
+  url: string;
+};
+
+export type Preset = {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  createdAt: string;
+};
+
+export type HistoryRole = 'system' | 'user' | 'assistant';
+
+export type HistoryEntry = {
+  id: string;
+  role: HistoryRole;
+  content: string;
+  timestamp: string;
+};
+
 export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
 
 export type DownloadStatus = {
@@ -60,6 +83,18 @@ export type SaveSettingsRequest = {
   settings: Settings;
 };
 
+export type SavePresetRequest = {
+  preset: Preset;
+};
+
+export type DeletePresetRequest = {
+  presetId: string;
+};
+
+export type AppendHistoryRequest = {
+  entry: HistoryEntry;
+};
+
 export type StartLlamaServerRequest = {
   executablePath: string;
   args: string[];
@@ -67,6 +102,10 @@ export type StartLlamaServerRequest = {
 
 export type GetLlamaServerLogsRequest = {
   limit?: number;
+};
+
+export type CheckLlamaServerHealthRequest = {
+  url: string;
 };
 
 export type StartDownloadRequest = {
@@ -91,6 +130,21 @@ export const getSettings = () => invoke<Settings>('get_settings');
 export const saveSettings = (settings: Settings) =>
   invoke<void>('save_settings', { settings } satisfies SaveSettingsRequest);
 
+export const getPresets = () => invoke<Preset[]>('get_presets');
+
+export const savePreset = (request: SavePresetRequest) =>
+  invoke<Preset[]>('save_preset', request);
+
+export const deletePreset = (request: DeletePresetRequest) =>
+  invoke<Preset[]>('delete_preset', request);
+
+export const getHistory = () => invoke<HistoryEntry[]>('get_history');
+
+export const appendHistory = (request: AppendHistoryRequest) =>
+  invoke<HistoryEntry[]>('append_history', request);
+
+export const clearHistory = () => invoke<void>('clear_history');
+
 export const getLlamaServerStatus = () =>
   invoke<LlamaProcessStatus>('get_llama_server_status');
 
@@ -105,6 +159,11 @@ export const getLlamaServerLogs = (request: GetLlamaServerLogsRequest = {}) =>
 
 export const clearLlamaServerLogs = () =>
   invoke<void>('clear_llama_server_logs');
+
+export const checkLlamaServerHealth = (request: CheckLlamaServerHealthRequest) =>
+  invoke<LlamaServerHealthStatus>('check_llama_server_health', request);
+
+export const getLlamaServerHealth = checkLlamaServerHealth;
 
 export const getDownloadStatuses = () =>
   invoke<DownloadStatus[]>('get_download_statuses');
