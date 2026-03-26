@@ -1,15 +1,19 @@
+use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 
-fn ensure_icon_ico() {
-    let icons_dir = Path::new("icons");
+fn ensure_icon_ico() -> Result<(), String> {
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
+        .map_err(|err| format!("CARGO_MANIFEST_DIR is not set: {err}"))?;
+    let icons_dir = PathBuf::from(manifest_dir).join("icons");
     let icon_ico = icons_dir.join("icon.ico");
 
     if icon_ico.exists() {
-        return;
+        return Ok(());
     }
 
-    let _ = fs::create_dir_all(icons_dir);
+    fs::create_dir_all(&icons_dir)
+        .map_err(|err| format!("failed to create {}: {err}", icons_dir.display()))?;
 
     // Minimal valid 1x1 32bpp ICO (ICONDIR + ICONDIRENTRY + BITMAPINFOHEADER + pixel + mask).
     // This is only a fallback for CI environments where icon assets were not checked out correctly.
@@ -32,10 +36,15 @@ fn ensure_icon_ico() {
         0x00, 0x00, 0x00, 0x00, // AND mask row (aligned to 4 bytes)
     ];
 
-    let _ = fs::write(icon_ico, ico_bytes);
+    fs::write(&icon_ico, ico_bytes)
+        .map_err(|err| format!("failed to write {}: {err}", icon_ico.display()))?;
+    println!("cargo:warning=generated fallback icon at {}", icon_ico.display());
+    Ok(())
 }
 
 fn main() {
-    ensure_icon_ico();
+    if let Err(err) = ensure_icon_ico() {
+        panic!("{err}");
+    }
     tauri_build::build()
 }
