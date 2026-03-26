@@ -68,3 +68,28 @@ This file defines subagent ownership for the Tauri multiplatform migration.
 - `#<n8>` Parity checklist + migration docs.
 
 Use branch names like `feature/migration/<n1>`, `feature/migration/<n2>`, etc.
+
+## Current Progress Snapshot
+
+- `#<n1>` Tauri scaffold + baseline app startup: in progress on `feature/migration/1`
+- `#<n2>` Rust settings/presets/history service: in progress on `feature/migration/1`
+- `#<n3>` Rust `llama-server` process manager: in progress on `feature/migration/1`
+- `#<n7>` CI matrix + release artifacts on tag: in progress on `feature/migration/1`
+- `#<n8>` Parity checklist + migration docs: in progress on `feature/migration/1`
+
+## Module Map
+
+- Legacy WinUI app:
+  - `App.xaml`, `Views/*`, `Services/*`, `Models/*`, `Converters/*`
+- Tauri backend:
+  - `src-tauri/src/core/*`
+  - `src-tauri/src/services/*`
+  - `src-tauri/src/commands/*`
+  - `src-tauri/src/state/*`
+- Tauri frontend:
+  - `ui/src/*`
+- Migration process/docs:
+  - `docs/migration/*`
+  - `tests/smoke/*`
+  - `CONTRIBUTING.md`
+  - `README.md`
