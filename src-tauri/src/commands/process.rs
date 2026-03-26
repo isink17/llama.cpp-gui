@@ -46,12 +46,15 @@ pub fn clear_llama_server_logs(state: State<'_, AppState>) -> Result<(), String>
     Ok(())
 }
 
+fn normalize_health_url(url: Option<String>) -> String {
+    url.map(|url| url.trim().to_string())
+        .filter(|url| !url.is_empty())
+        .unwrap_or_else(|| DEFAULT_HEALTH_URL.to_string())
+}
+
 #[tauri::command]
 pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealthStatus, String> {
-    let url = url
-        .map(|url| url.trim().to_string())
-        .filter(|url| !url.is_empty())
-        .unwrap_or_else(|| DEFAULT_HEALTH_URL.to_string());
+    let url = normalize_health_url(url);
 
     let client = Client::builder()
         .build()
@@ -80,5 +83,31 @@ pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealt
             message: Some(format!("failed to reach llama-server: {err}")),
             url,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_health_url, DEFAULT_HEALTH_URL};
+
+    #[test]
+    fn normalize_health_url_defaults_when_missing_or_blank() {
+        assert_eq!(normalize_health_url(None), DEFAULT_HEALTH_URL);
+        assert_eq!(
+            normalize_health_url(Some("   ".to_string())),
+            DEFAULT_HEALTH_URL
+        );
+        assert_eq!(
+            normalize_health_url(Some("\n\t  ".to_string())),
+            DEFAULT_HEALTH_URL
+        );
+    }
+
+    #[test]
+    fn normalize_health_url_trims_non_empty_input() {
+        assert_eq!(
+            normalize_health_url(Some("  http://127.0.0.1:9000/health  ".to_string())),
+            "http://127.0.0.1:9000/health"
+        );
     }
 }
