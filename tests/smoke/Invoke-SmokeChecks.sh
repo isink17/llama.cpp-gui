@@ -2,6 +2,7 @@
 set -euo pipefail
 
 skip_prereq_check=false
+include_cargo_check=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -9,11 +10,18 @@ while [[ $# -gt 0 ]]; do
       skip_prereq_check=true
       shift
       ;;
+    --include-cargo-check)
+      include_cargo_check=true
+      shift
+      ;;
     -h|--help)
       cat <<'EOF'
-Usage: Invoke-SmokeChecks.sh [--skip-prereq-check]
+Usage: Invoke-SmokeChecks.sh [--skip-prereq-check] [--include-cargo-check]
 
 Runs the fast smoke checks for the migration slice.
+
+Optional flags:
+  --include-cargo-check  Run `cargo check --locked` after the default smoke pass.
 EOF
       exit 0
       ;;
@@ -77,5 +85,9 @@ fi
 
 invoke_checked_command "$ui_dir" npm run build
 invoke_checked_command "$tauri_dir" cargo fmt --check --manifest-path "$cargo_toml"
+
+if [[ "$include_cargo_check" == true ]]; then
+  invoke_checked_command "$tauri_dir" cargo check --locked
+fi
 
 printf 'Smoke checks completed successfully.\n'

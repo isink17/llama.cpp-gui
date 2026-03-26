@@ -1,7 +1,10 @@
 #!/usr/bin/env pwsh
 [CmdletBinding()]
 param(
-  [switch]$SkipPrereqCheck
+  [switch]$SkipPrereqCheck,
+  [switch]$IncludeCargoCheck,
+  [Alias('h')]
+  [switch]$Help
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +57,24 @@ function Invoke-CheckedCommand {
   }
 }
 
+function Show-Help {
+  $helpText = @'
+Usage: Invoke-SmokeChecks.ps1 [-SkipPrereqCheck] [-IncludeCargoCheck] [-Help]
+
+Runs the fast smoke checks for the migration slice.
+
+Optional flags:
+  -IncludeCargoCheck  Run `cargo check --locked` after the default smoke pass.
+'@
+
+  Write-Host $helpText
+}
+
+if ($Help) {
+  Show-Help
+  exit 0
+}
+
 if (-not $SkipPrereqCheck) {
   Test-SmokePrereqs
 }
@@ -68,5 +89,9 @@ if (-not (Test-Path $cargoToml)) {
 
 Invoke-CheckedCommand -FilePath 'npm' -ArgumentList @('run', 'build') -WorkingDirectory $uiDir
 Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('fmt', '--check', '--manifest-path', $cargoToml) -WorkingDirectory $tauriDir
+
+if ($IncludeCargoCheck) {
+  Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('check', '--locked') -WorkingDirectory $tauriDir
+}
 
 Write-Host 'Smoke checks completed successfully.' -ForegroundColor Green

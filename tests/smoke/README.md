@@ -19,6 +19,7 @@ Run from the repository root with PowerShell:
 ```powershell
 .\tests\smoke\Test-SmokePrereqs.ps1
 .\tests\smoke\Invoke-SmokeChecks.ps1
+.\tests\smoke\Invoke-SmokeChecks.ps1 -Help
 ```
 
 Run from the repository root with bash:
@@ -31,11 +32,18 @@ Optional: skip the prereq check when you already know the environment is ready.
 
 ```powershell
 .\tests\smoke\Invoke-SmokeChecks.ps1 -SkipPrereqCheck
+.\tests\smoke\Invoke-SmokeChecks.ps1 -SkipPrereqCheck -IncludeCargoCheck
 ```
 
 ```bash
 ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check
+./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check
 ```
+
+The optional `IncludeCargoCheck` / `--include-cargo-check` flag adds `cargo check --locked`
+after the default smoke pass. Leave it off for the fastest validation path.
+
+Use `-Help` in PowerShell or `--help` in bash to print the script usage summary.
 
 ## Execution Order
 
@@ -43,6 +51,7 @@ The smoke pass is intentionally ordered to catch the cheapest regressions first:
 
 1. `npm run build` in `ui/`
 2. `cargo fmt --check --manifest-path src-tauri/Cargo.toml`
+3. `cargo check --locked` when the optional cargo-check flag is enabled
 
 Use `--skip-prereq-check` only when `cargo` and `npm` are already confirmed available, or inside CI after setup.
 
