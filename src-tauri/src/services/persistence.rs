@@ -62,7 +62,9 @@ impl PersistenceService {
     {
         self.ensure_data_dir()?;
         let path = self.data_dir.join(file_name);
+        let tmp_path = self.data_dir.join(format!("{file_name}.tmp"));
         let json = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
-        fs::write(path, json)
+        fs::write(&tmp_path, json)?;
+        fs::rename(tmp_path, path)
     }
 }
