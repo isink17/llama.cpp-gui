@@ -46,3 +46,8 @@ codegraph.sqlite
 codegraph.sqlite-shm
 codegraph.sqlite-wal
 .dotnet-home/
+
+# Tauri + UI migration artifacts
+src-tauri/target/
+ui/node_modules/
+ui/dist/

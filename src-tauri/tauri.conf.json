@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LlamaCppDesk",
+  "version": "0.1.0",
+  "identifier": "com.llamacppdesk.app",
+  "build": {
+    "beforeDevCommand": "npm --prefix ../ui run dev -- --port 1420 --strictPort",
+    "beforeBuildCommand": "npm --prefix ../ui run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "LlamaCppDesk",
+        "width": 1280,
+        "height": 800,
+        "resizable": true
+      }
+    ]
+  }
+}
