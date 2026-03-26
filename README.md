@@ -1,82 +1,130 @@
 # LlamaCppDesk
 
-LlamaCppDesk is currently transitioning from a Windows-only WinUI desktop app to a Tauri-based multiplatform app.
+LlamaCppDesk is migrating from a Windows-only WinUI app to a Tauri-based cross-platform desktop app.
 
-## Repository Layout
+This repository currently contains both codepaths:
 
-- WinUI app (current production baseline):
-  - `App.xaml`, `Views/*`, `Services/*`, `Models/*`, `Converters/*`
-- Tauri backend (migration target):
-  - `src-tauri/*`
-- Tauri frontend (migration target):
-  - `ui/*`
-- Migration docs and QA:
-  - `docs/migration/*`
-  - `tests/smoke/*`
+- WinUI app (existing baseline)
+- Tauri backend (`src-tauri/`)
+- Tauri frontend (`ui/`)
 
-## Branching Model (Migration)
+## Project Structure
 
-- Integration branch: `feature/multiplatform_support`
-- Work-item branches: `feature/migration/<issue-number>`
-- Migration PRs target: `feature/multiplatform_support`
-- Final consolidation PR target: `master`
+- WinUI app: `App.xaml`, `Views/`, `Services/`, `Models/`, `Converters/`
+- Tauri backend: `src-tauri/`
+- Tauri frontend: `ui/`
+- Migration docs: `docs/migration/`
+- Smoke validation: `tests/smoke/`
 
-Every migration PR should include:
+## Prerequisites
 
-- `Closes #<issue-number>`
+### Required
 
-## Current Migration Scope
+- Node.js 22+
+- npm
+- Rust stable toolchain (with Cargo)
 
-- `#<n1>` Tauri scaffold + baseline app startup
-- `#<n2>` Rust settings/presets/history service
-- `#<n3>` Rust `llama-server` process manager
-- `#<n4>` Rust downloader service with progress/cancel
-- `#<n5>` Rust chat request/streaming service
-- `#<n6>` UI shell + settings + chat baseline wiring
-- `#<n7>` CI matrix + release artifacts on tag
-- `#<n8>` Parity checklist + migration docs
+### Platform notes
 
-## Current Branch Progress
+- Windows:
+  - Visual Studio C++ build tools / MSVC runtime must be installed.
+  - If you see `LNK1104 msvcrt.lib`, your MSVC toolchain/runtime is incomplete.
+- Linux (for Tauri/GTK builds):
+  - `pkg-config`
+  - `libglib2.0-dev`
+  - `libgtk-3-dev`
+  - `libwebkit2gtk-4.1-dev`
+  - `libayatana-appindicator3-dev`
+  - `librsvg2-dev`
 
-Branch: `feature/migration/1`
+## Quick Start (Tauri App)
 
-- Baseline Tauri shell and frontend bridge are in place.
-- Rust persistence, process management, downloader, and chat streaming services are implemented at baseline level.
-- UI wiring exists for settings, presets/history, `llama-server`, downloads, logs, and chat streaming, with a typed Tauri API client in place.
-- Hardening now includes cross-platform `migration-ci` smoke coverage with per-OS smoke diagnostics artifacts on failures.
-- Tag validation now runs the smoke script with the optional cargo-check path.
-- Remaining work is parity validation, broader platform coverage, and packaging/release flow.
-
-## Local Development
-
-### WinUI app
-
-Use your standard .NET/Windows App SDK workflow for the existing WinUI codebase.
-
-### Tauri migration app
-
-Frontend:
+From repository root:
 
 ```powershell
 npm --prefix ui install
+```
+
+### Run frontend only
+
+```powershell
+npm --prefix ui run dev
+```
+
+### Build frontend
+
+```powershell
 npm --prefix ui run build
 ```
 
-Backend:
+### Check backend formatting/build
 
 ```powershell
 cargo fmt --manifest-path src-tauri/Cargo.toml
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-Note: if `cargo check` fails with `LNK1104 msvcrt.lib`, your local MSVC toolchain/runtime setup is incomplete.
+### Run Tauri backend binary directly
 
-## Process and Docs
+```powershell
+cargo run --manifest-path src-tauri/Cargo.toml
+```
+
+## Smoke Validation
+
+Use smoke scripts before opening/merging migration PRs:
+
+```powershell
+.\tests\smoke\Invoke-SmokeChecks.ps1
+```
+
+```bash
+./tests/smoke/Invoke-SmokeChecks.sh
+```
+
+Stricter path (includes `cargo check --locked`):
+
+```powershell
+.\tests\smoke\Invoke-SmokeChecks.ps1 -SkipPrereqCheck -IncludeCargoCheck
+```
+
+```bash
+./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check
+```
+
+Manual checklist: `tests/smoke/smoke-checklist.md`
+
+## CI / Release Notes
+
+- Migration CI: `.github/workflows/migration-ci.yml`
+  - Cross-platform validation matrix
+  - Smoke checks and per-OS diagnostics artifacts on failure
+- Tag build workflow: `.github/workflows/build-on-tag.yml`
+  - Stable artifact naming
+  - Smoke validation path with cargo-check enabled
+
+## Contribution and Workflow
 
 - Contribution rules: `CONTRIBUTING.md`
-- Agent ownership and scope: `AGENTS.md`
+- Agent ownership: `AGENTS.md`
 - Migration runbook: `docs/migration/runbook.md`
 - Parity checklist: `docs/migration/parity-checklist.md`
-- Smoke checklist: `tests/smoke/smoke-checklist.md`
-- Migration CI workflow: `.github/workflows/migration-ci.yml`
-- Smoke scripts: `tests/smoke/Invoke-SmokeChecks.ps1`, `tests/smoke/Invoke-SmokeChecks.sh`
+
+Branching model:
+
+- Integration branch: `feature/multiplatform_support`
+- Work branches: `feature/migration/<issue-number>`
+- Migration PRs target: `feature/multiplatform_support`
+- PR descriptions must include: `Closes #<issue-number>`
+
+## Current Status
+
+Migration branch currently has baseline implementations for:
+
+- Settings, presets, history persistence
+- `llama-server` lifecycle and health/log surfacing
+- Downloader start/cancel/status flow
+- Chat stream start/cancel/status flow
+- Typed Tauri API integration in the UI
+
+Parity hardening and final release consolidation are still in progress.
