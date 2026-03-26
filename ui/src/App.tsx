@@ -40,8 +40,31 @@ type ChatEvent = {
   error?: string;
 };
 
+type Preset = {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  createdAt: string;
+};
+
+type HistoryEntry = {
+  id: string;
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+};
+
 const LOG_LIMIT = 200;
 const REFRESH_INTERVAL_MS = 4000;
+const HISTORY_ROLES: HistoryEntry['role'][] = ['system', 'user', 'assistant'];
+
+const createId = (prefix: string) =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const formatTimestamp = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
 
 function App() {
   const [settings, setSettings] = useState<Settings>({
@@ -59,6 +82,18 @@ function App() {
   const [downloadPath, setDownloadPath] = useState('');
   const [downloads, setDownloads] = useState<DownloadStatus[]>([]);
   const [llamaLogs, setLlamaLogs] = useState<string[]>([]);
+
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [presetDraft, setPresetDraft] = useState<Preset>({
+    id: '',
+    name: '',
+    systemPrompt: '',
+    createdAt: '',
+  });
+
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [historyRole, setHistoryRole] = useState<HistoryEntry['role']>('user');
+  const [historyContent, setHistoryContent] = useState('');
 
   const [chatModel, setChatModel] = useState('default');
   const [chatPrompt, setChatPrompt] = useState('');
@@ -80,6 +115,8 @@ function App() {
         loadedDownloads,
         loadedStreams,
         loadedLogs,
+        loadedPresets,
+        loadedHistory,
       ] = await Promise.all([
         tauriBridge.invokeCommand<Settings>('get_settings'),
         tauriBridge.invokeCommand<ProcessStatus>('get_llama_server_status'),
@@ -88,12 +125,16 @@ function App() {
         tauriBridge.invokeCommand<string[]>('get_llama_server_logs', {
           limit: LOG_LIMIT,
         }),
+        tauriBridge.invokeCommand<Preset[]>('get_presets'),
+        tauriBridge.invokeCommand<HistoryEntry[]>('get_history'),
       ]);
       setSettings(loadedSettings);
       setProcessStatus(loadedProcess);
       setDownloads(loadedDownloads);
       setChatStatuses(loadedStreams);
       setLlamaLogs(loadedLogs);
+      setPresets(loadedPresets);
+      setHistoryEntries(loadedHistory);
     } catch (error) {
       setMessage(String(error));
     }
@@ -128,6 +169,96 @@ function App() {
     try {
       await tauriBridge.invokeCommand('save_settings', { settings });
       setMessage('Settings saved.');
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const resetPresetDraft = () => {
+    setPresetDraft({
+      id: '',
+      name: '',
+      systemPrompt: '',
+      createdAt: '',
+    });
+  };
+
+  const editPreset = (preset: Preset) => {
+    setPresetDraft(preset);
+  };
+
+  const savePreset = async () => {
+    try {
+      const trimmedName = presetDraft.name.trim();
+      if (!trimmedName) {
+        setMessage('Preset name is required.');
+        return;
+      }
+
+      const payload: Preset = {
+        id: presetDraft.id.trim() || createId('preset'),
+        name: trimmedName,
+        systemPrompt: presetDraft.systemPrompt,
+        createdAt: presetDraft.createdAt.trim() || new Date().toISOString(),
+      };
+
+      const next = await tauriBridge.invokeCommand<Preset[]>('save_preset', {
+        preset: payload,
+      });
+      setPresets(next);
+      setPresetDraft(payload);
+      setMessage(`Preset '${payload.name}' saved.`);
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const deletePreset = async (presetId: string) => {
+    try {
+      const next = await tauriBridge.invokeCommand<Preset[]>('delete_preset', {
+        presetId,
+      });
+      setPresets(next);
+      if (presetDraft.id === presetId) {
+        resetPresetDraft();
+      }
+      setMessage('Preset deleted.');
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const appendHistoryEntry = async () => {
+    try {
+      const content = historyContent.trim();
+      if (!content) {
+        setMessage('History content is required.');
+        return;
+      }
+
+      const entry: HistoryEntry = {
+        id: createId('history'),
+        role: historyRole,
+        content,
+        timestamp: new Date().toISOString(),
+      };
+      const next = await tauriBridge.invokeCommand<HistoryEntry[]>(
+        'append_history',
+        { entry },
+      );
+      setHistoryEntries(next);
+      setHistoryContent('');
+      setMessage('History entry added.');
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const clearHistory = async () => {
+    try {
+      await tauriBridge.invokeCommand('clear_history');
+      setHistoryEntries([]);
+      setMessage('History cleared.');
     } catch (error) {
       setMessage(String(error));
     }
@@ -324,6 +455,159 @@ function App() {
         </article>
 
         <article className="card">
+          <div className="panel-header">
+            <h2>Presets</h2>
+            <button className="secondary" onClick={resetPresetDraft}>
+              New preset
+            </button>
+          </div>
+          <label>
+            Name
+            <input
+              value={presetDraft.name}
+              onChange={(e) =>
+                setPresetDraft((prev) => ({ ...prev, name: e.target.value }))
+              }
+            />
+          </label>
+          <label>
+            Preset ID
+            <input
+              value={presetDraft.id}
+              onChange={(e) =>
+                setPresetDraft((prev) => ({ ...prev, id: e.target.value }))
+              }
+              placeholder="Generated automatically for new presets"
+            />
+          </label>
+          <label>
+            System prompt
+            <textarea
+              value={presetDraft.systemPrompt}
+              onChange={(e) =>
+                setPresetDraft((prev) => ({
+                  ...prev,
+                  systemPrompt: e.target.value,
+                }))
+              }
+              rows={4}
+            />
+          </label>
+          <div className="row">
+            <button onClick={() => void savePreset()}>Save preset</button>
+            <button className="secondary" onClick={resetPresetDraft}>
+              Clear form
+            </button>
+          </div>
+          <div className="panel">
+            <div className="panel-header">
+              <h3>Saved presets</h3>
+              <span className="hint">{presets.length} items</span>
+            </div>
+            <div className="entry-list">
+              {presets.length ? (
+                presets.map((preset) => (
+                  <article className="entry-card" key={preset.id}>
+                    <div className="entry-card-header">
+                      <div>
+                        <strong>{preset.name}</strong>
+                        <div className="hint">{preset.id}</div>
+                      </div>
+                      <div className="hint">{formatTimestamp(preset.createdAt)}</div>
+                    </div>
+                    <p>{preset.systemPrompt || 'No system prompt stored.'}</p>
+                    <div className="row">
+                      <button
+                        className="secondary"
+                        onClick={() => editPreset(preset)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="danger"
+                        onClick={() => void deletePreset(preset.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">No presets saved yet.</p>
+              )}
+            </div>
+          </div>
+        </article>
+
+        <article className="card">
+          <div className="panel-header">
+            <h2>History</h2>
+            <button className="secondary" onClick={() => void clearHistory()}>
+              Clear history
+            </button>
+          </div>
+          <div className="field-grid">
+            <label>
+              Role
+              <select
+                value={historyRole}
+                onChange={(e) =>
+                  setHistoryRole(e.target.value as HistoryEntry['role'])
+                }
+              >
+                {HISTORY_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Count
+              <input value={historyEntries.length} readOnly />
+            </label>
+          </div>
+          <label>
+            Content
+            <textarea
+              value={historyContent}
+              onChange={(e) => setHistoryContent(e.target.value)}
+              rows={4}
+              placeholder="Append a history entry manually."
+            />
+          </label>
+          <div className="row">
+            <button onClick={() => void appendHistoryEntry()}>
+              Append history
+            </button>
+          </div>
+          <div className="panel">
+            <div className="panel-header">
+              <h3>Stored entries</h3>
+              <span className="hint">Newest first</span>
+            </div>
+            <div className="entry-list">
+              {historyEntries.length ? (
+                [...historyEntries].reverse().map((entry) => (
+                  <article className="entry-card" key={entry.id}>
+                    <div className="entry-card-header">
+                      <div>
+                        <strong>{entry.role}</strong>
+                        <div className="hint">{entry.id}</div>
+                      </div>
+                      <div className="hint">{formatTimestamp(entry.timestamp)}</div>
+                    </div>
+                    <p>{entry.content}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">No history entries saved yet.</p>
+              )}
+            </div>
+          </div>
+        </article>
+
+        <article className="card">
           <h2>Downloader</h2>
           <label>
             Source URL
@@ -344,7 +628,9 @@ function App() {
             {downloads.map((item) => (
               <li key={item.downloadId}>
                 <strong>{item.downloadId}</strong> {item.state}{' '}
-                {item.percentComplete ? `(${item.percentComplete.toFixed(1)}%)` : ''}
+                {item.percentComplete !== null && item.percentComplete !== undefined
+                  ? `(${item.percentComplete.toFixed(1)}%)`
+                  : ''}
                 <button onClick={() => void cancelDownload(item.downloadId)}>
                   Cancel
                 </button>

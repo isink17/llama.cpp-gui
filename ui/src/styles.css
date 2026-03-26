@@ -1,7 +1,10 @@
 :root {
   color-scheme: dark;
   font-family: 'Segoe UI', system-ui, sans-serif;
-  background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.28), transparent 28%),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 24%),
+    linear-gradient(180deg, #0f172a 0%, #111827 100%);
   color: #f3f4f6;
   line-height: 1.45;
 }
@@ -22,7 +25,9 @@ body {
 }
 
 .app-shell {
+  width: min(1440px, 100%);
   min-height: 100vh;
+  margin: 0 auto;
   padding: 20px;
   display: grid;
   gap: 16px;
@@ -32,6 +37,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: end;
+  gap: 16px;
 }
 
 .eyebrow {
@@ -47,10 +53,22 @@ h1 {
   font-size: clamp(1.4rem, 3vw, 2.2rem);
 }
 
+h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .card {
@@ -60,6 +78,7 @@ h1 {
   padding: 14px;
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .chat-card {
@@ -71,22 +90,23 @@ h1 {
   gap: 8px;
 }
 
-.panel-header {
+.panel-header,
+.entry-card-header,
+.field-grid {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
 }
 
-h3 {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #cbd5e1;
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
-h2 {
-  margin: 0;
-  font-size: 1rem;
+.hint {
+  color: #94a3b8;
+  font-size: 0.85rem;
 }
 
 label {
@@ -98,18 +118,24 @@ label {
 
 input,
 textarea,
+select,
 button {
   font: inherit;
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   background: #0b1220;
   color: #f3f4f6;
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+textarea {
+  resize: vertical;
 }
 
 button {
@@ -119,15 +145,69 @@ button {
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
 }
 
 button:hover {
   background: #1d4ed8;
 }
 
+button:active {
+  transform: translateY(1px);
+}
+
+button.secondary {
+  background: #1e293b;
+}
+
+button.secondary:hover {
+  background: #334155;
+}
+
+button.danger {
+  background: #b91c1c;
+}
+
+button.danger:hover {
+  background: #991b1b;
+}
+
 .row {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entry-list {
+  display: grid;
+  gap: 10px;
+}
+
+.entry-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(11, 18, 32, 0.72);
+}
+
+.entry-card strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.entry-card p {
+  margin: 0;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty-state {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
 }
 
 ul {
@@ -168,5 +248,10 @@ pre {
 @media (max-width: 900px) {
   .chat-card {
     grid-column: span 1;
+  }
+
+  .page-header {
+    align-items: start;
+    flex-direction: column;
   }
 }
