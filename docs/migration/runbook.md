@@ -24,6 +24,8 @@ This runbook defines the standard execution flow for each migration work item.
 1. Run relevant build/test commands for touched areas.
 2. Record manual verification steps in issue/PR notes.
 3. If parity behavior changes, update `parity-checklist.md`.
+4. Use `[-]` for baseline-implemented items that were exercised locally; keep `[ ]` for gaps that are still unverified.
+5. Reserve `[x]` for end-to-end validation, not just code presence.
 
 ## 4. Open PR to Integration Branch
 

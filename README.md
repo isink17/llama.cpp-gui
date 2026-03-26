@@ -36,6 +36,15 @@ Every migration PR should include:
 - `#<n7>` CI matrix + release artifacts on tag
 - `#<n8>` Parity checklist + migration docs
 
+## Current Branch Progress
+
+Branch: `feature/migration/1`
+
+- Baseline Tauri shell and frontend bridge are in place.
+- Rust persistence, process management, downloader, and chat streaming services are implemented at baseline level.
+- UI wiring exists for settings, `llama-server`, downloads, logs, and chat streaming.
+- Remaining work is parity validation, platform coverage, and packaging/release flow.
+
 ## Local Development
 
 ### WinUI app
