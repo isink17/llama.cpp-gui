@@ -107,6 +107,16 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Run smoke checks (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check
+
+      - name: Run smoke checks (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/smoke/Invoke-SmokeChecks.ps1 -SkipPrereqCheck
+
       - name: Build UI
         working-directory: ui
         run: npm run build
