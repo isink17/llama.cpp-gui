@@ -61,3 +61,43 @@ jobs:
       - name: Cargo test compile
         working-directory: src-tauri
         run: cargo test --locked --no-run
+
+  validate-cross-platform:
+    name: Cross-platform UI and Rust checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: macos-15
+          - os: windows-2025
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      - name: Cargo check
+        working-directory: src-tauri
+        run: cargo check --locked

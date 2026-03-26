@@ -84,7 +84,10 @@ function App() {
   });
   const [processHealth, setProcessHealth] =
     useState<LlamaServerHealthStatus | null>(null);
-  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
+  const [refreshIssue, setRefreshIssue] = useState<string | null>(null);
+  const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState<
+    string | null
+  >(null);
 
   const [downloadUrl, setDownloadUrl] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
@@ -181,10 +184,12 @@ function App() {
         setLlamaLogs(loadedLogs);
         setPresets(loadedPresets);
         setHistoryEntries(loadedHistory);
+        setRefreshIssue(null);
+        setLastSuccessfulRefreshAt(new Date().toISOString());
       } catch (error) {
-        setMessage(String(error));
-      } finally {
-        setLastRefreshAt(new Date().toISOString());
+        const errorMessage = String(error);
+        setRefreshIssue(errorMessage);
+        setMessage(errorMessage);
       }
     });
   }, [withBusyAction]);
@@ -438,7 +443,15 @@ function App() {
         });
         setProcessHealth(health);
       } catch (error) {
-        setMessage(String(error));
+        const healthUrl = `${settings.serverUrl.replace(/\/$/, '')}/health`;
+        const errorMessage = String(error);
+        setProcessHealth({
+          healthy: false,
+          statusCode: null,
+          message: errorMessage,
+          url: healthUrl,
+        });
+        setMessage(errorMessage);
       }
     });
   };
@@ -477,6 +490,11 @@ function App() {
         : chatStatuses.some((item) => item.state === 'completed')
         ? 'success'
         : 'neutral';
+  const refreshStatusLabel = refreshIssue ? 'Refresh failed' : 'Sync live';
+  const refreshStatusTone = refreshIssue ? 'danger' : 'success';
+  const refreshStatusHint = refreshIssue
+    ? refreshIssue
+    : 'Auto-refresh polling is active.';
   const isRefreshing = isBusy('refresh');
   const isSavingSettings = isBusy('saveSettings');
   const isCheckingHealth = isBusy('checkHealth');
@@ -501,11 +519,11 @@ function App() {
           <h1>LlamaCppDesk Tauri control panel</h1>
           <div className="header-meta">
             <span className="hint">
-              Last refresh:{' '}
+              Last successful sync:{' '}
               {isRefreshing
                 ? 'Refreshing...'
-                : lastRefreshAt
-                  ? formatTimestamp(lastRefreshAt)
+                : lastSuccessfulRefreshAt
+                  ? formatTimestamp(lastSuccessfulRefreshAt)
                   : 'Waiting...'}
             </span>
           </div>
@@ -561,6 +579,12 @@ function App() {
 
         <article className="card">
           <h2>llama-server</h2>
+          <div className="status-summary">
+            <span className={`status-badge ${refreshStatusTone}`}>
+              {refreshStatusLabel}
+            </span>
+            <span className="hint">{refreshStatusHint}</span>
+          </div>
           <div className="status-summary">
             <span className={`status-badge ${processBadgeTone}`}>
               {processBadgeLabel}
