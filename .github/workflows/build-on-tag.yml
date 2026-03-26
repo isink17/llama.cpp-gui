@@ -46,6 +46,12 @@ jobs:
 
   build:
     name: Build and validate (${{ matrix.os }})
+    # Keep the Windows release paths and artifact name stable across package/upload/release steps.
+    env:
+      WINDOWS_CONFIGURATION: Release
+      WINDOWS_RUNTIME_IDENTIFIER: win-x64
+      WINDOWS_TARGET_FRAMEWORK: net10.0-windows10.0.19041.0
+      WINDOWS_ARTIFACT_PREFIX: LlamaCppDesk-win-x64
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +69,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare release paths
+        shell: pwsh
+        run: |
+          if (-not $env:GITHUB_REF_TYPE -or $env:GITHUB_REF_TYPE -ne 'tag') {
+            throw "This workflow must run from a tag ref."
+          }
+
+          if (-not $env:GITHUB_REF_NAME) {
+            throw "GITHUB_REF_NAME is empty."
+          }
+
+          if ($env:GITHUB_REF_NAME -match '\s') {
+            throw "Tag names with whitespace are not supported."
+          }
+
+          $artifactSuffix = $env:GITHUB_REF_NAME -replace '[^A-Za-z0-9._-]', '-'
+          if (-not $artifactSuffix) {
+            throw "Unable to derive a stable artifact suffix from tag '$($env:GITHUB_REF_NAME)'."
+          }
+
+          $publishDir = Join-Path "bin" $env:WINDOWS_CONFIGURATION
+          $publishDir = Join-Path $publishDir $env:WINDOWS_TARGET_FRAMEWORK
+          $publishDir = Join-Path $publishDir $env:WINDOWS_RUNTIME_IDENTIFIER
+          $publishDir = Join-Path $publishDir "publish"
+          $exePath = Join-Path $publishDir "LlamaCppDesk.exe"
+          $zipPath = Join-Path $publishDir "$($env:WINDOWS_ARTIFACT_PREFIX).zip"
+          $artifactName = "$($env:WINDOWS_ARTIFACT_PREFIX)-$artifactSuffix"
+
+          "WINDOWS_PUBLISH_DIR=$publishDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "WINDOWS_EXE_PATH=$exePath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "WINDOWS_ZIP_PATH=$zipPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "WORKFLOW_ARTIFACT_NAME=$artifactName" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -73,14 +112,16 @@ jobs:
 
       - name: Build
         if: matrix.publish
-        run: dotnet build LlamaCppDesk.csproj -c Release -p:Platform=x64 --no-restore
+        shell: pwsh
+        run: dotnet build LlamaCppDesk.csproj -c $env:WINDOWS_CONFIGURATION -p:Platform=x64 --no-restore
 
       - name: Publish EXE
         if: matrix.publish
+        shell: pwsh
         run: >
           dotnet publish LlamaCppDesk.csproj
-          -c Release
-          -r win-x64
+          -c $env:WINDOWS_CONFIGURATION
+          -r $env:WINDOWS_RUNTIME_IDENTIFIER
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
@@ -92,20 +133,43 @@ jobs:
         if: matrix.publish
         shell: pwsh
         run: |
-          $publishDir = "bin/Release/net10.0-windows10.0.19041.0/win-x64/publish"
-          $zipPath = "$publishDir/LlamaCppDesk-win-x64.zip"
-          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-          Compress-Archive -Path "$publishDir/LlamaCppDesk.exe" -DestinationPath $zipPath
-          Write-Output "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+          if (-not (Test-Path $env:WINDOWS_PUBLISH_DIR)) {
+            throw "Missing publish output directory: $env:WINDOWS_PUBLISH_DIR"
+          }
+
+          if (-not (Test-Path $env:WINDOWS_EXE_PATH)) {
+            throw "Missing publish output: $env:WINDOWS_EXE_PATH"
+          }
+
+          if (Test-Path $env:WINDOWS_ZIP_PATH) { Remove-Item $env:WINDOWS_ZIP_PATH -Force }
+          Compress-Archive -Path $env:WINDOWS_EXE_PATH -DestinationPath $env:WINDOWS_ZIP_PATH
+
+          if (-not (Test-Path $env:WINDOWS_ZIP_PATH)) {
+            throw "Failed to create archive: $env:WINDOWS_ZIP_PATH"
+          }
+
+          Write-Output "WINDOWS_ZIP_PATH=$env:WINDOWS_ZIP_PATH" >> $env:GITHUB_ENV
+
+      - name: Validate release artifacts
+        if: matrix.publish
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:WINDOWS_EXE_PATH)) {
+            throw "Missing release executable: $env:WINDOWS_EXE_PATH"
+          }
+
+          if (-not (Test-Path $env:WINDOWS_ZIP_PATH)) {
+            throw "Missing release archive: $env:WINDOWS_ZIP_PATH"
+          }
 
       - name: Upload workflow artifact
         if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
-          name: LlamaCppDesk-win-x64-${{ github.ref_name }}
+          name: ${{ env.WORKFLOW_ARTIFACT_NAME }}
           path: |
-            bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/LlamaCppDesk.exe
-            ${{ env.ZIP_PATH }}
+            ${{ env.WINDOWS_EXE_PATH }}
+            ${{ env.WINDOWS_ZIP_PATH }}
           if-no-files-found: error
 
       - name: Publish GitHub Release Asset
@@ -113,5 +177,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/LlamaCppDesk.exe
-            ${{ env.ZIP_PATH }}
+            ${{ env.WINDOWS_EXE_PATH }}
+            ${{ env.WINDOWS_ZIP_PATH }}
