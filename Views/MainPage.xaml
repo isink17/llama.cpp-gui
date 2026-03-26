@@ -22,25 +22,13 @@
 
         <Border Grid.Column="0" Padding="16" Background="{ThemeResource LayerFillColorDefaultBrush}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="12">
-                    <StackPanel Spacing="4" Margin="0,0,0,6">
-                        <TextBlock Text="Llama.cpp Desk" FontSize="26" FontWeight="SemiBold" />
-                        <TextBlock Text="Local model chat with quick setup and presets." Opacity="0.72" />
-                    </StackPanel>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Llama.cpp Desk" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="Local GUI wrapper inspired by Ollama" Opacity="0.7" Margin="0,0,0,8" />
 
-                    <Border Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="10" Padding="12">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Quick Start" FontWeight="SemiBold" />
-                            <TextBlock Text="1. Set server and model paths" Opacity="0.75" />
-                            <TextBlock Text="2. Save settings and click Start" Opacity="0.75" />
-                            <TextBlock Text="3. Ask your first prompt in chat" Opacity="0.75" />
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock Style="{StaticResource SidebarSectionTitle}" Text="Connection" />
-
-                    <TextBlock Text="llama-server executable" Opacity="0.75" />
-                    <Grid ColumnSpacing="8">
+                    <TextBlock Style="{StaticResource SidebarSectionTitle}" Text="Server" />
+                    <TextBlock Text="llama-server.exe path" Opacity="0.75" />
+                    <Grid ColumnSpacing="8" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -49,11 +37,11 @@
                         <Button Grid.Column="1" Content="Browse" Click="OnBrowseServerClicked" />
                     </Grid>
 
-                    <TextBlock Text="Recent server paths" Opacity="0.75" />
-                    <ComboBox x:Name="ServerHistoryBox" ItemsSource="{x:Bind ServerHistory, Mode=OneWay}" PlaceholderText="No server history yet" Margin="0,0,0,2" SelectionChanged="ServerHistoryBox_SelectionChanged" />
+                    <TextBlock Text="Recent servers" Opacity="0.75" />
+                    <ComboBox x:Name="ServerHistoryBox" PlaceholderText="No server history yet" ItemsSource="{x:Bind ServerHistory, Mode=OneWay}" Margin="0,0,0,8" SelectionChanged="ServerHistoryBox_SelectionChanged" />
 
-                    <TextBlock Text="Model file (.gguf)" Opacity="0.75" />
-                    <Grid ColumnSpacing="8">
+                    <TextBlock Text="Model (.gguf) path" Opacity="0.75" />
+                    <Grid ColumnSpacing="8" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -62,130 +50,84 @@
                         <Button Grid.Column="1" Content="Browse" Click="OnBrowseModelClicked" />
                     </Grid>
 
-                    <TextBlock Text="Recent model paths" Opacity="0.75" />
-                    <ComboBox x:Name="ModelHistoryBox" ItemsSource="{x:Bind ModelHistory, Mode=OneWay}" PlaceholderText="No model history yet" Margin="0,0,0,2" SelectionChanged="ModelHistoryBox_SelectionChanged" />
+                    <TextBlock Text="Model presets/history" Opacity="0.75" />
+                    <ComboBox x:Name="ModelHistoryBox" PlaceholderText="No model history yet" ItemsSource="{x:Bind ModelHistory, Mode=OneWay}" Margin="0,0,0,8" SelectionChanged="ModelHistoryBox_SelectionChanged" />
 
-                    <Grid ColumnSpacing="8" Margin="0,2,0,0">
+                    <TextBlock Style="{StaticResource SidebarSectionTitle}" Text="Presets" />
+                    <TextBlock Text="Preset name" Opacity="0.75" />
+                    <TextBox x:Name="PresetNameBox" Style="{StaticResource FormTextBox}" PlaceholderText="Balanced" />
+                    <TextBlock Text="Saved presets" Opacity="0.75" />
+                    <ComboBox x:Name="PresetBox" PlaceholderText="No presets yet" ItemsSource="{x:Bind PresetNames, Mode=OneWay}" Margin="0,0,0,8" SelectionChanged="PresetBox_SelectionChanged" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                        <Button Content="Save Preset" Click="OnSavePresetClicked" />
+                        <Button Content="Apply" Click="OnApplyPresetClicked" />
+                        <Button Content="Delete" Click="OnDeletePresetClicked" />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource SidebarSectionTitle}" Text="Model Downloader" />
+                    <TextBlock Text="Model URL (.gguf direct link)" Opacity="0.75" />
+                    <TextBox x:Name="DownloadUrlBox" Style="{StaticResource FormTextBox}" PlaceholderText="https://.../model.gguf" />
+                    <TextBlock Text="Hugging Face token (optional)" Opacity="0.75" />
+                    <PasswordBox x:Name="HfTokenBox" Margin="0,0,0,8" />
+                    <TextBlock Text="Recent URLs" Opacity="0.75" />
+                    <ComboBox x:Name="DownloadUrlHistoryBox" PlaceholderText="No download history yet" ItemsSource="{x:Bind DownloadUrlHistory, Mode=OneWay}" Margin="0,0,0,8" SelectionChanged="DownloadUrlHistoryBox_SelectionChanged" />
+
+                    <TextBlock Text="Download folder" Opacity="0.75" />
+                    <Grid ColumnSpacing="8" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Host" Opacity="0.75" />
-                            <TextBox x:Name="HostBox" Style="{StaticResource FormTextBox}" PlaceholderText="127.0.0.1" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="Port" Opacity="0.75" />
-                            <TextBox x:Name="PortBox" Style="{StaticResource FormTextBox}" PlaceholderText="8080" />
-                        </StackPanel>
+                        <TextBox x:Name="DownloadFolderBox" Style="{StaticResource FormTextBox}" Margin="0" PlaceholderText="C:\Users\Ivan\Downloads\LLMModels" />
+                        <Button Grid.Column="1" Content="Browse" Click="OnBrowseDownloadFolderClicked" />
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
-                        <Button Content="Save Settings" Style="{StaticResource PrimaryAction}" Click="OnSaveSettingsClicked" />
-                        <Button Content="Start Server" Click="OnStartClicked" />
+                    <TextBlock Text="Save as file name (optional)" Opacity="0.75" />
+                    <TextBox x:Name="DownloadFileNameBox" Style="{StaticResource FormTextBox}" PlaceholderText="model.gguf" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                        <Button Content="Download" Click="OnDownloadModelClicked" />
+                        <Button Content="Cancel" Click="OnCancelDownloadClicked" />
+                    </StackPanel>
+
+                    <ProgressBar x:Name="DownloadProgressBar" Minimum="0" Maximum="100" Value="0" Height="10" Margin="0,0,0,4" />
+                    <TextBlock Text="{x:Bind DownloadProgressText, Mode=OneWay}" Opacity="0.75" Margin="0,0,0,8" />
+
+                    <TextBlock Text="Host" Opacity="0.75" />
+                    <TextBox x:Name="HostBox" Style="{StaticResource FormTextBox}" PlaceholderText="127.0.0.1" />
+
+                    <TextBlock Text="Port" Opacity="0.75" />
+                    <TextBox x:Name="PortBox" Style="{StaticResource FormTextBox}" PlaceholderText="8080" />
+
+                    <TextBlock Style="{StaticResource SidebarSectionTitle}" Text="Runtime" />
+                    <TextBlock Text="Context size" Opacity="0.75" />
+                    <TextBox x:Name="ContextBox" Style="{StaticResource FormTextBox}" PlaceholderText="4096" />
+
+                    <TextBlock Text="Threads" Opacity="0.75" />
+                    <TextBox x:Name="ThreadsBox" Style="{StaticResource FormTextBox}" PlaceholderText="4" />
+
+                    <TextBlock Text="GPU layers (0 = CPU only)" Opacity="0.75" />
+                    <TextBox x:Name="GpuLayersBox" Style="{StaticResource FormTextBox}" PlaceholderText="0" />
+
+                    <TextBlock Style="{StaticResource SidebarSectionTitle}" Text="Generation" />
+                    <TextBlock Text="Temperature" Opacity="0.75" />
+                    <TextBox x:Name="TemperatureBox" Style="{StaticResource FormTextBox}" PlaceholderText="0.7" />
+
+                    <TextBlock Text="Max tokens" Opacity="0.75" />
+                    <TextBox x:Name="MaxTokensBox" Style="{StaticResource FormTextBox}" PlaceholderText="512" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                        <Button Content="Save" Click="OnSaveSettingsClicked" Style="{StaticResource PrimaryAction}" />
+                        <Button Content="Start" Click="OnStartClicked" />
                         <Button Content="Stop" Click="OnStopClicked" />
                     </StackPanel>
 
-                    <Expander Header="Presets" IsExpanded="True">
-                        <StackPanel Spacing="4" Margin="0,10,0,0">
-                            <TextBlock Text="Preset name" Opacity="0.75" />
-                            <TextBox x:Name="PresetNameBox" Style="{StaticResource FormTextBox}" PlaceholderText="Balanced" />
-                            <TextBlock Text="Saved presets" Opacity="0.75" />
-                            <ComboBox x:Name="PresetBox" ItemsSource="{x:Bind PresetNames, Mode=OneWay}" PlaceholderText="No presets yet" Margin="0,0,0,4" SelectionChanged="PresetBox_SelectionChanged" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Save" Click="OnSavePresetClicked" />
-                                <Button Content="Apply" Click="OnApplyPresetClicked" />
-                                <Button Content="Delete" Click="OnDeletePresetClicked" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Expander>
-
-                    <Expander Header="Model Downloader" IsExpanded="False">
-                        <StackPanel Spacing="4" Margin="0,10,0,0">
-                            <TextBlock Text="Download source" Opacity="0.75" />
-                            <ComboBox
-                                x:Name="DownloadSourceBox"
-                                ItemsSource="{x:Bind DownloadSourceOptions, Mode=OneWay}"
-                                SelectedItem="{x:Bind SelectedDownloadSource, Mode=TwoWay}"
-                                Margin="0,0,0,8" />
-
-                            <TextBlock Text="{x:Bind DownloadInputLabel, Mode=OneWay}" Opacity="0.75" />
-                            <TextBox x:Name="DownloadUrlBox" Style="{StaticResource FormTextBox}" PlaceholderText="{x:Bind DownloadInputPlaceholder, Mode=OneWay}" />
-                            <TextBlock Text="{x:Bind DownloadSourceHintText, Mode=OneWay}" Opacity="0.65" TextWrapping="Wrap" Margin="0,-4,0,6" />
-
-                            <StackPanel Visibility="{x:Bind HuggingFaceOptionsVisibility, Mode=OneWay}">
-                                <TextBlock Text="Hugging Face token (optional for public repos)" Opacity="0.75" />
-                                <PasswordBox x:Name="HfTokenBox" Margin="0,0,0,8" />
-                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-                                    <Button Content="Preview Files" Click="OnPreviewHuggingFaceFilesClicked" />
-                                    <TextBlock Text="{x:Bind HuggingFaceFilesStatusText, Mode=OneWay}" Opacity="0.7" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <ComboBox
-                                    x:Name="HuggingFaceFilesBox"
-                                    ItemsSource="{x:Bind HuggingFaceGgufFiles, Mode=OneWay}"
-                                    SelectedItem="{x:Bind SelectedHuggingFaceGgufFile, Mode=TwoWay}"
-                                    PlaceholderText="No files loaded yet"
-                                    Margin="0,0,0,8" />
-                            </StackPanel>
-
-                            <StackPanel Visibility="{x:Bind OllamaOptionsVisibility, Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-                                    <Button Content="Preview Tags" Click="OnPreviewOllamaTagsClicked" />
-                                    <TextBlock Text="{x:Bind OllamaTagsStatusText, Mode=OneWay}" Opacity="0.7" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <ComboBox
-                                    x:Name="OllamaTagsBox"
-                                    ItemsSource="{x:Bind OllamaTags, Mode=OneWay}"
-                                    SelectedItem="{x:Bind SelectedOllamaTag, Mode=TwoWay}"
-                                    PlaceholderText="No tags loaded yet"
-                                    Margin="0,0,0,8" />
-                            </StackPanel>
-
-                            <TextBlock Text="Recent references" Opacity="0.75" />
-                            <ComboBox x:Name="DownloadUrlHistoryBox" ItemsSource="{x:Bind DownloadUrlHistory, Mode=OneWay}" PlaceholderText="No download history yet" Margin="0,0,0,4" SelectionChanged="DownloadUrlHistoryBox_SelectionChanged" />
-
-                            <TextBlock Text="Download folder" Opacity="0.75" />
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="DownloadFolderBox" Style="{StaticResource FormTextBox}" Margin="0" PlaceholderText="C:\Users\Ivan\Downloads\LLMModels" />
-                                <Button Grid.Column="1" Content="Browse" Click="OnBrowseDownloadFolderClicked" />
-                            </Grid>
-
-                            <TextBlock Text="File name (optional)" Opacity="0.75" />
-                            <TextBox x:Name="DownloadFileNameBox" Style="{StaticResource FormTextBox}" PlaceholderText="model.gguf" />
-
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Download" Click="OnDownloadModelClicked" />
-                                <Button Content="Cancel" Click="OnCancelDownloadClicked" />
-                            </StackPanel>
-
-                            <ProgressBar x:Name="DownloadProgressBar" Minimum="0" Maximum="100" Value="0" Height="10" Margin="0,4,0,2" />
-                            <TextBlock Text="{x:Bind DownloadProgressText, Mode=OneWay}" Opacity="0.75" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Expander>
-
-                    <Expander Header="Advanced Runtime & Generation" IsExpanded="False">
-                        <StackPanel Spacing="4" Margin="0,10,0,0">
-                            <TextBlock Text="Context size" Opacity="0.75" />
-                            <TextBox x:Name="ContextBox" Style="{StaticResource FormTextBox}" PlaceholderText="4096" />
-                            <TextBlock Text="Threads" Opacity="0.75" />
-                            <TextBox x:Name="ThreadsBox" Style="{StaticResource FormTextBox}" PlaceholderText="4" />
-                            <TextBlock Text="GPU layers (0 = CPU only)" Opacity="0.75" />
-                            <TextBox x:Name="GpuLayersBox" Style="{StaticResource FormTextBox}" PlaceholderText="0" />
-                            <TextBlock Text="Temperature (0 - 2)" Opacity="0.75" />
-                            <TextBox x:Name="TemperatureBox" Style="{StaticResource FormTextBox}" PlaceholderText="0.7" />
-                            <TextBlock Text="Max tokens" Opacity="0.75" />
-                            <TextBox x:Name="MaxTokensBox" Style="{StaticResource FormTextBox}" PlaceholderText="512" />
-                        </StackPanel>
-                    </Expander>
+                    <TextBlock Text="{x:Bind ServerStatusText, Mode=OneWay}" Margin="0,10,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </ScrollViewer>
         </Border>
 
-        <Grid Grid.Column="1" Padding="16">
+        <Grid Grid.Column="1" Padding="14">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -193,97 +135,54 @@
             </Grid.RowDefinitions>
 
             <Border Padding="12" CornerRadius="10" Background="{ThemeResource LayerFillColorAltBrush}">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                        <Ellipse Width="10" Height="10" Fill="{x:Bind StatusDotBrush, Mode=OneWay}" />
-                        <TextBlock Text="{x:Bind HeaderStatusText, Mode=OneWay}" FontWeight="SemiBold" />
-                    </StackPanel>
-                    <TextBlock Text="{x:Bind ServerStatusText, Mode=OneWay}" Opacity="0.75" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Ellipse Width="10" Height="10" Fill="{x:Bind StatusDotBrush, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind HeaderStatusText, Mode=OneWay}" FontWeight="SemiBold" />
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Row="1">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,8">
-                    <Button Content="Clear Chat" Click="OnClearChatClicked" />
-                    <Button Content="Copy Last Reply" Click="OnCopyLastReplyClicked" />
-                </StackPanel>
-
-                <Grid Grid.Row="1">
-                    <Border
-                        Background="{ThemeResource LayerFillColorAltBrush}"
-                        CornerRadius="12"
-                        Padding="14"
-                        Margin="0,4,0,4"
-                        Visibility="{x:Bind EmptyStateVisibility, Mode=OneWay}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="No messages yet" FontWeight="SemiBold" />
-                            <TextBlock Text="Start with one of these prompts:" Opacity="0.75" />
-                            <WrapGrid Orientation="Horizontal" MaximumRowsOrColumns="3">
-                                <Button Content="Summarize this document style" Margin="0,0,8,8" Click="OnStarterPromptClicked" />
-                                <Button Content="Write test cases for this function" Margin="0,0,8,8" Click="OnStarterPromptClicked" />
-                                <Button Content="Explain this error in plain English" Margin="0,0,8,8" Click="OnStarterPromptClicked" />
-                            </WrapGrid>
+            <ListView
+                x:Name="ChatList"
+                Grid.Row="1"
+                Margin="0,12,0,12"
+                ItemsSource="{x:Bind Messages, Mode=OneWay}"
+                IsItemClickEnabled="False"
+                SelectionMode="None">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:ChatMessage">
+                        <StackPanel
+                            HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToHorizontalAlignmentConverter}}"
+                            MaxWidth="780"
+                            Margin="0,4">
+                            <Border
+                                Background="{Binding Role, Converter={StaticResource RoleToBubbleBrushConverter}}"
+                                CornerRadius="14"
+                                Padding="12,9">
+                                <TextBlock Text="{x:Bind Content}" TextWrapping="Wrap" Foreground="White" />
+                            </Border>
                         </StackPanel>
-                    </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
 
-                    <ListView
-                        x:Name="ChatList"
-                        Margin="0,4,0,4"
-                        ItemsSource="{x:Bind Messages, Mode=OneWay}"
-                        IsItemClickEnabled="False"
-                        SelectionMode="None">
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="models:ChatMessage">
-                                <StackPanel
-                                    HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToHorizontalAlignmentConverter}}"
-                                    MaxWidth="860"
-                                    Margin="0,4">
-                                    <Border
-                                        Background="{Binding Role, Converter={StaticResource RoleToBubbleBrushConverter}}"
-                                        CornerRadius="14"
-                                        Padding="12,9">
-                                        <TextBlock Text="{x:Bind Content}" TextWrapping="Wrap" Foreground="White" />
-                                    </Border>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,6,2,0">
-                                        <Button Content="Copy" Tag="{Binding}" Click="OnCopyMessageClicked" />
-                                        <Button Content="Use as Prompt" Tag="{Binding}" Click="OnUseAsPromptClicked" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+            <Border Grid.Row="2" Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="12" Padding="10">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox
+                        x:Name="PromptBox"
+                        AcceptsReturn="True"
+                        MinHeight="54"
+                        MaxHeight="130"
+                        PlaceholderText="Type a message..."
+                        TextWrapping="Wrap"
+                        KeyDown="PromptBox_KeyDown" />
+                    <Button Grid.Column="1" Content="Send" Style="{StaticResource PrimaryAction}" Click="OnSendClicked" />
                 </Grid>
-            </Grid>
-
-            <StackPanel Grid.Row="2" Spacing="6">
-                <TextBlock Text="{x:Bind ComposerHintText, Mode=OneWay}" Opacity="0.7" />
-                <Border Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="12" Padding="10">
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBox
-                            x:Name="PromptBox"
-                            AcceptsReturn="True"
-                            MinHeight="54"
-                            MaxHeight="130"
-                            PlaceholderText="Ask your local model..."
-                            TextWrapping="Wrap"
-                            IsEnabled="{x:Bind IsPromptInputEnabled, Mode=OneWay}"
-                            KeyDown="PromptBox_KeyDown" />
-                        <Button Grid.Column="1" Content="Send" Style="{StaticResource PrimaryAction}" Click="OnSendClicked" IsEnabled="{x:Bind IsSendEnabled, Mode=OneWay}" />
-                        <Button Grid.Column="2" Content="Stop" Click="OnStopGenerationClicked" IsEnabled="{x:Bind IsStopEnabled, Mode=OneWay}" />
-                    </Grid>
-                </Border>
-            </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Page>

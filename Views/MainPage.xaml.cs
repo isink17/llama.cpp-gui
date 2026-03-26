@@ -1100,7 +1100,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         source = string.Empty;
         reference = entry;
 
-        if (!entry.StartsWith('[', StringComparison.Ordinal))
+        if (!entry.StartsWith("[", StringComparison.Ordinal))
         {
             return false;
         }
@@ -1276,7 +1276,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         clearPrompt = true;
 
         var command = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
-        if (!command.StartsWith('/', StringComparison.Ordinal))
+        if (!command.StartsWith("/", StringComparison.Ordinal))
         {
             return false;
         }

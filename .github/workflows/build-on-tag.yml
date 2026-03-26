@@ -1,0 +1,63 @@
+name: Build On Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore LlamaCppDesk.csproj
+
+      - name: Build
+        run: dotnet build LlamaCppDesk.csproj -c Release -p:Platform=x64 --no-restore
+
+      - name: Publish EXE
+        run: >
+          dotnet publish LlamaCppDesk.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:WindowsAppSDKSelfContained=true
+          -p:PublishProfile=win-x64.pubxml
+          --no-build
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $publishDir = "bin/Release/net10.0-windows10.0.19041.0/win-x64/publish"
+          $zipPath = "$publishDir/LlamaCppDesk-win-x64.zip"
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path "$publishDir/LlamaCppDesk.exe" -DestinationPath $zipPath
+          Write-Output "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LlamaCppDesk-win-x64-${{ github.ref_name }}
+          path: |
+            bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/LlamaCppDesk.exe
+            ${{ env.ZIP_PATH }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/LlamaCppDesk.exe
+            ${{ env.ZIP_PATH }}
