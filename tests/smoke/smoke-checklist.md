@@ -37,4 +37,5 @@ Run this checklist for each migration PR when relevant.
 ## CI/Artifacts (when touched)
 
 - [ ] Relevant CI workflow passes
+- [ ] Optional cargo-check smoke path executed when backend/runtime code changes
 - [ ] Artifact output path/name validated
