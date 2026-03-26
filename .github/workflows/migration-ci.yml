@@ -57,6 +57,25 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Ensure Windows icon asset
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iconPath = "src-tauri/icons/icon.ico"
+          if (-not (Test-Path $iconPath)) {
+            Add-Type -AssemblyName System.Drawing
+            $bmp = New-Object System.Drawing.Bitmap(256,256,[System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb(255,44,113,255))
+            $hicon = $bmp.GetHicon()
+            $icon = [System.Drawing.Icon]::FromHandle($hicon)
+            $fs = [IO.File]::Open($iconPath,[IO.FileMode]::Create)
+            $icon.Save($fs)
+            $fs.Dispose()
+            $g.Dispose()
+            $bmp.Dispose()
+          }
+
       - name: Run smoke checks
         id: smoke
         shell: bash
@@ -130,6 +149,25 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
+      - name: Ensure Windows icon asset
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iconPath = "src-tauri/icons/icon.ico"
+          if (-not (Test-Path $iconPath)) {
+            Add-Type -AssemblyName System.Drawing
+            $bmp = New-Object System.Drawing.Bitmap(256,256,[System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb(255,44,113,255))
+            $hicon = $bmp.GetHicon()
+            $icon = [System.Drawing.Icon]::FromHandle($hicon)
+            $fs = [IO.File]::Open($iconPath,[IO.FileMode]::Create)
+            $icon.Save($fs)
+            $fs.Dispose()
+            $g.Dispose()
+            $bmp.Dispose()
+          }
 
       - name: Run smoke checks (Unix)
         if: runner.os != 'Windows'
