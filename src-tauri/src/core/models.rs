@@ -44,6 +44,15 @@ pub struct LlamaProcessStatus {
     pub last_exit_code: Option<i32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlamaServerHealthStatus {
+    pub healthy: bool,
+    pub status_code: Option<u16>,
+    pub message: Option<String>,
+    pub url: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DownloadState {

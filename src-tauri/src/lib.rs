@@ -14,8 +14,8 @@ use commands::migration_data::{
     save_preset, save_settings,
 };
 use commands::process::{
-    clear_llama_server_logs, get_llama_server_logs, get_llama_server_status, start_llama_server,
-    stop_llama_server,
+    check_llama_server_health, clear_llama_server_logs, get_llama_server_logs,
+    get_llama_server_status, start_llama_server, stop_llama_server,
 };
 use services::chat::ChatService;
 use services::downloader::DownloaderService;
@@ -67,6 +67,7 @@ pub fn run() {
             get_llama_server_status,
             get_llama_server_logs,
             clear_llama_server_logs,
+            check_llama_server_health,
             start_download,
             cancel_download,
             get_download_status,

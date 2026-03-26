@@ -1,9 +1,11 @@
-use crate::core::models::LlamaProcessStatus;
+use crate::core::models::{LlamaProcessStatus, LlamaServerHealthStatus};
 use crate::state::app_state::AppState;
+use reqwest::blocking::Client;
 use tauri::State;
 
 const DEFAULT_LOG_LIMIT: usize = 200;
 const MAX_LOG_LIMIT: usize = 2000;
+const DEFAULT_HEALTH_URL: &str = "http://127.0.0.1:8080/health";
 
 #[tauri::command]
 pub fn start_llama_server(
@@ -42,4 +44,41 @@ pub fn clear_llama_server_logs(state: State<'_, AppState>) -> Result<(), String>
     let mut manager = state.process_manager.lock().map_err(|e| e.to_string())?;
     manager.clear_logs();
     Ok(())
+}
+
+#[tauri::command]
+pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealthStatus, String> {
+    let url = url
+        .map(|url| url.trim().to_string())
+        .filter(|url| !url.is_empty())
+        .unwrap_or_else(|| DEFAULT_HEALTH_URL.to_string());
+
+    let client = Client::builder()
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+
+    match client.get(&url).send() {
+        Ok(response) => {
+            let status = response.status();
+            let healthy = status.is_success();
+            let message = if healthy {
+                Some("llama-server is healthy".to_string())
+            } else {
+                Some(format!("health check failed with HTTP status {status}"))
+            };
+
+            Ok(LlamaServerHealthStatus {
+                healthy,
+                status_code: Some(status.as_u16()),
+                message,
+                url,
+            })
+        }
+        Err(err) => Ok(LlamaServerHealthStatus {
+            healthy: false,
+            status_code: None,
+            message: Some(format!("failed to reach llama-server: {err}")),
+            url,
+        }),
+    }
 }
