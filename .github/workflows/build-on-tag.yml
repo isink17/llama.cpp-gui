@@ -36,13 +36,9 @@ jobs:
         with:
           components: rustfmt
 
-      - name: Check Rust formatting
-        shell: pwsh
-        run: ./tests/smoke/Invoke-SmokeChecks.ps1 -SkipPrereqCheck
-
-      - name: Cargo check
-        working-directory: src-tauri
-        run: cargo check --locked
+      - name: Run smoke checks
+        shell: bash
+        run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check
 
   build:
     name: Build and validate (${{ matrix.os }})
