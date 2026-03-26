@@ -31,7 +31,10 @@ This runbook defines the standard execution flow for each migration work item.
    - `Invoke-SmokeChecks.sh`
 7. The smoke pass runs `npm run build` in `ui/` first, then `cargo fmt --check --manifest-path src-tauri/Cargo.toml`.
 8. Use `--skip-prereq-check` only when the environment is already known to have `cargo` and `npm`, or in CI.
-9. The `migration-ci` workflow runs `tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check` before `cargo check`.
+9. Use the optional cargo-check flag when you need the stricter path:
+   - PowerShell: `Invoke-SmokeChecks.ps1 -SkipPrereqCheck -IncludeCargoCheck`
+   - Bash: `Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check`
+10. The `migration-ci` workflow runs smoke checks on Linux and macOS with `Invoke-SmokeChecks.sh --skip-prereq-check`, and on Windows with `Invoke-SmokeChecks.ps1 -SkipPrereqCheck`, before the build and validation steps continue.
 
 ## 4. Open PR to Integration Branch
 
