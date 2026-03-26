@@ -134,7 +134,11 @@ mod tests {
         classify_health_failure, health_error_message, health_status_from_error,
         health_status_from_response, normalize_health_url, HealthFailureKind, DEFAULT_HEALTH_URL,
     };
+    use reqwest::blocking::Client;
     use reqwest::StatusCode;
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
 
     #[test]
     fn normalize_health_url_defaults_when_missing_or_blank() {
@@ -214,5 +218,51 @@ mod tests {
             health_error_message(url, HealthFailureKind::Other, "tls handshake failed"),
             "failed to reach llama-server at http://127.0.0.1:8080/health: tls handshake failed"
         );
+    }
+
+    #[test]
+    fn classify_health_failure_marks_connection_refused_unavailable() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("should bind ephemeral port");
+        let port = listener.local_addr().expect("local addr available").port();
+        drop(listener);
+
+        let url = format!("http://127.0.0.1:{port}/health");
+        let client = Client::builder().build().expect("client should build");
+        let error = client
+            .get(&url)
+            .send()
+            .expect_err("request should fail against closed port");
+
+        assert!(error.is_connect());
+        assert_eq!(
+            classify_health_failure(&error),
+            HealthFailureKind::Unavailable
+        );
+    }
+
+    #[test]
+    fn classify_health_failure_marks_hanging_server_timeout() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("should bind ephemeral port");
+        let port = listener.local_addr().expect("local addr available").port();
+
+        let server = thread::spawn(move || {
+            if let Ok((_socket, _addr)) = listener.accept() {
+                thread::sleep(Duration::from_millis(400));
+            }
+        });
+
+        let url = format!("http://127.0.0.1:{port}/health");
+        let client = Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .expect("client should build");
+        let error = client
+            .get(&url)
+            .send()
+            .expect_err("request should time out against hanging server");
+
+        assert!(error.is_timeout());
+        assert_eq!(classify_health_failure(&error), HealthFailureKind::Timeout);
+        server.join().expect("server thread should complete");
     }
 }
