@@ -1,43 +1,31 @@
 import { tauriBridge } from './lib/tauri';
+import {
+  cancelChatStream as cancelChatStreamCommand,
+  cancelDownload as cancelDownloadCommand,
+  clearLlamaServerLogs,
+  getChatStreamStatuses,
+  getDownloadStatuses,
+  getLlamaServerLogs,
+  getLlamaServerStatus,
+  getSettings,
+  saveSettings as saveSettingsCommand,
+  startChatStream as startChatStreamCommand,
+  startDownload as startDownloadCommand,
+  startLlamaServer as startLlamaServerCommand,
+  stopLlamaServer as stopLlamaServerCommand,
+  type ChatStreamEvent,
+  type ChatStreamStatus,
+  type DownloadStatus,
+  type LlamaProcessStatus,
+  type Settings,
+} from './lib/tauri/api';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-type Settings = {
-  serverUrl: string;
-  maxTokens: number;
-  temperature: number;
-};
-
-type ProcessStatus = {
-  running: boolean;
-  pid?: number | null;
-  lastExitCode?: number | null;
-};
-
-type DownloadStatus = {
-  downloadId: string;
-  sourceUrl: string;
-  destinationPath: string;
-  state: string;
-  bytesDownloaded: number;
-  totalBytes?: number | null;
-  percentComplete?: number | null;
-  error?: string | null;
-};
-
-type ChatStreamStatus = {
-  streamId: string;
-  state: string;
-  model: string;
-  bytesReceived: number;
-  error?: string | null;
-};
-
-type ChatEvent = {
-  streamId: string;
-  eventType: string;
-  data?: string;
-  state: string;
-  error?: string;
+type LlamaServerHealthStatus = {
+  healthy: boolean;
+  statusCode?: number | null;
+  message?: string | null;
+  url: string;
 };
 
 type Preset = {
@@ -74,9 +62,12 @@ function App() {
   });
   const [processPath, setProcessPath] = useState('llama-server');
   const [processArgs, setProcessArgs] = useState('--port 8080');
-  const [processStatus, setProcessStatus] = useState<ProcessStatus>({
+  const [processStatus, setProcessStatus] = useState<LlamaProcessStatus>({
     running: false,
   });
+  const [processHealth, setProcessHealth] =
+    useState<LlamaServerHealthStatus | null>(null);
+  const [processHealthBusy, setProcessHealthBusy] = useState(false);
 
   const [downloadUrl, setDownloadUrl] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
@@ -118,13 +109,11 @@ function App() {
         loadedPresets,
         loadedHistory,
       ] = await Promise.all([
-        tauriBridge.invokeCommand<Settings>('get_settings'),
-        tauriBridge.invokeCommand<ProcessStatus>('get_llama_server_status'),
-        tauriBridge.invokeCommand<DownloadStatus[]>('get_download_statuses'),
-        tauriBridge.invokeCommand<ChatStreamStatus[]>('get_chat_stream_statuses'),
-        tauriBridge.invokeCommand<string[]>('get_llama_server_logs', {
-          limit: LOG_LIMIT,
-        }),
+        getSettings(),
+        getLlamaServerStatus(),
+        getDownloadStatuses(),
+        getChatStreamStatuses(),
+        getLlamaServerLogs({ limit: LOG_LIMIT }),
         tauriBridge.invokeCommand<Preset[]>('get_presets'),
         tauriBridge.invokeCommand<HistoryEntry[]>('get_history'),
       ]);
@@ -144,7 +133,7 @@ function App() {
     const stopListening = tauriBridge.listenToEvent(
       'chat_stream_event',
       (payload) => {
-        const event = payload as ChatEvent;
+        const event = payload as ChatStreamEvent;
         if (event.eventType === 'chunk' && event.data) {
           setChatLog((prev) => [...prev, event.data as string]);
         }
@@ -167,7 +156,7 @@ function App() {
 
   const saveSettings = async () => {
     try {
-      await tauriBridge.invokeCommand('save_settings', { settings });
+      await saveSettingsCommand(settings);
       setMessage('Settings saved.');
     } catch (error) {
       setMessage(String(error));
@@ -270,11 +259,12 @@ function App() {
         .split(' ')
         .map((item) => item.trim())
         .filter(Boolean);
-      const status = await tauriBridge.invokeCommand<ProcessStatus>(
-        'start_llama_server',
-        { executablePath: processPath, args },
-      );
+      const status = await startLlamaServerCommand({
+        executablePath: processPath,
+        args,
+      });
       setProcessStatus(status);
+      setProcessHealth(null);
       setMessage('llama-server started.');
     } catch (error) {
       setMessage(String(error));
@@ -283,9 +273,9 @@ function App() {
 
   const stopProcess = async () => {
     try {
-      const status =
-        await tauriBridge.invokeCommand<ProcessStatus>('stop_llama_server');
+      const status = await stopLlamaServerCommand();
       setProcessStatus(status);
+      setProcessHealth(null);
       setMessage('llama-server stopped.');
     } catch (error) {
       setMessage(String(error));
@@ -294,12 +284,11 @@ function App() {
 
   const startDownload = async () => {
     try {
-      await tauriBridge.invokeCommand<DownloadStatus>('start_download', {
+      await startDownloadCommand({
         sourceUrl: downloadUrl,
         destinationPath: downloadPath,
       });
-      const next =
-        await tauriBridge.invokeCommand<DownloadStatus[]>('get_download_statuses');
+      const next = await getDownloadStatuses();
       setDownloads(next);
       setMessage('Download started.');
     } catch (error) {
@@ -309,9 +298,8 @@ function App() {
 
   const cancelDownload = async (downloadId: string) => {
     try {
-      await tauriBridge.invokeCommand('cancel_download', { downloadId });
-      const next =
-        await tauriBridge.invokeCommand<DownloadStatus[]>('get_download_statuses');
+      await cancelDownloadCommand({ downloadId });
+      const next = await getDownloadStatuses();
       setDownloads(next);
     } catch (error) {
       setMessage(String(error));
@@ -321,7 +309,7 @@ function App() {
   const startChat = async () => {
     try {
       setChatLog([]);
-      await tauriBridge.invokeCommand<ChatStreamStatus>('start_chat_stream', {
+      await startChatStreamCommand({
         request: {
           serverUrl: settings.serverUrl,
           model: chatModel,
@@ -330,10 +318,7 @@ function App() {
           temperature: settings.temperature,
         },
       });
-      const next =
-        await tauriBridge.invokeCommand<ChatStreamStatus[]>(
-          'get_chat_stream_statuses',
-        );
+      const next = await getChatStreamStatuses();
       setChatStatuses(next);
       setMessage('Chat stream started.');
     } catch (error) {
@@ -344,13 +329,10 @@ function App() {
   const cancelChat = async () => {
     if (!activeStream) return;
     try {
-      await tauriBridge.invokeCommand('cancel_chat_stream', {
+      await cancelChatStreamCommand({
         streamId: activeStream.streamId,
       });
-      const next =
-        await tauriBridge.invokeCommand<ChatStreamStatus[]>(
-          'get_chat_stream_statuses',
-        );
+      const next = await getChatStreamStatuses();
       setChatStatuses(next);
     } catch (error) {
       setMessage(String(error));
@@ -359,13 +341,39 @@ function App() {
 
   const clearLogs = async () => {
     try {
-      await tauriBridge.invokeCommand('clear_llama_server_logs');
+      await clearLlamaServerLogs();
       setLlamaLogs([]);
       setMessage('llama-server logs cleared.');
     } catch (error) {
       setMessage(String(error));
     }
   };
+
+  const checkProcessHealth = async () => {
+    setProcessHealthBusy(true);
+    try {
+      const health = await tauriBridge.invokeCommand<LlamaServerHealthStatus>(
+        'check_llama_server_health',
+        { url: `${settings.serverUrl.replace(/\/$/, '')}/health` },
+      );
+      setProcessHealth(health);
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setProcessHealthBusy(false);
+    }
+  };
+
+  const processHealthLabel = processHealth
+    ? processHealth.healthy
+      ? 'Healthy'
+      : 'Unhealthy'
+    : 'Not checked';
+  const processHealthClass = processHealth
+    ? processHealth.healthy
+      ? 'healthy'
+      : 'unhealthy'
+    : 'idle';
 
   return (
     <main className="app-shell">
@@ -425,6 +433,32 @@ function App() {
             Status: {processStatus.running ? 'Running' : 'Stopped'} (pid:{' '}
             {processStatus.pid ?? '-'})
           </p>
+          <div className="health-panel">
+            <div className="panel-header">
+              <h3>Health</h3>
+              <button
+                className="secondary"
+                onClick={() => void checkProcessHealth()}
+                disabled={processHealthBusy}
+              >
+                {processHealthBusy ? 'Checking...' : 'Check health'}
+              </button>
+            </div>
+            <div className="health-summary">
+              <span className={`status-pill ${processHealthClass}`}>
+                {processHealthLabel}
+              </span>
+              <span className="hint">
+                {processHealth?.statusCode !== undefined &&
+                processHealth?.statusCode !== null
+                  ? `HTTP ${processHealth.statusCode}`
+                  : processHealth?.url ?? 'No health check run yet.'}
+              </span>
+            </div>
+            {processHealth?.message ? (
+              <p className="health-message">{processHealth.message}</p>
+            ) : null}
+          </div>
           <label>
             Executable path
             <input
