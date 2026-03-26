@@ -66,6 +66,24 @@ h1 {
   grid-column: span 2;
 }
 
+.panel {
+  display: grid;
+  gap: 8px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
 h2 {
   margin: 0;
   font-size: 1rem;
@@ -132,6 +150,11 @@ pre {
   border-radius: 8px;
   padding: 10px;
   min-height: 120px;
+}
+
+.log-panel {
+  max-height: 260px;
+  overflow: auto;
 }
 
 .status-line {

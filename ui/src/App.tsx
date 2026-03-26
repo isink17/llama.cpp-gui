@@ -1,5 +1,5 @@
 import { tauriBridge } from './lib/tauri';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Settings = {
   serverUrl: string;
@@ -40,6 +40,9 @@ type ChatEvent = {
   error?: string;
 };
 
+const LOG_LIMIT = 200;
+const REFRESH_INTERVAL_MS = 4000;
+
 function App() {
   const [settings, setSettings] = useState<Settings>({
     serverUrl: 'http://127.0.0.1:8080',
@@ -55,6 +58,7 @@ function App() {
   const [downloadUrl, setDownloadUrl] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [downloads, setDownloads] = useState<DownloadStatus[]>([]);
+  const [llamaLogs, setLlamaLogs] = useState<string[]>([]);
 
   const [chatModel, setChatModel] = useState('default');
   const [chatPrompt, setChatPrompt] = useState('');
@@ -67,6 +71,33 @@ function App() {
     () => chatStatuses.find((item) => item.state === 'streaming'),
     [chatStatuses],
   );
+
+  const refreshAll = useCallback(async () => {
+    try {
+      const [
+        loadedSettings,
+        loadedProcess,
+        loadedDownloads,
+        loadedStreams,
+        loadedLogs,
+      ] = await Promise.all([
+        tauriBridge.invokeCommand<Settings>('get_settings'),
+        tauriBridge.invokeCommand<ProcessStatus>('get_llama_server_status'),
+        tauriBridge.invokeCommand<DownloadStatus[]>('get_download_statuses'),
+        tauriBridge.invokeCommand<ChatStreamStatus[]>('get_chat_stream_statuses'),
+        tauriBridge.invokeCommand<string[]>('get_llama_server_logs', {
+          limit: LOG_LIMIT,
+        }),
+      ]);
+      setSettings(loadedSettings);
+      setProcessStatus(loadedProcess);
+      setDownloads(loadedDownloads);
+      setChatStatuses(loadedStreams);
+      setLlamaLogs(loadedLogs);
+    } catch (error) {
+      setMessage(String(error));
+    }
+  }, []);
 
   useEffect(() => {
     const stopListening = tauriBridge.listenToEvent(
@@ -83,28 +114,15 @@ function App() {
     );
 
     void refreshAll();
-    return () => stopListening();
-  }, []);
+    const intervalId = window.setInterval(() => {
+      void refreshAll();
+    }, REFRESH_INTERVAL_MS);
 
-  const refreshAll = async () => {
-    try {
-      const [loadedSettings, loadedProcess, loadedDownloads, loadedStreams] =
-        await Promise.all([
-          tauriBridge.invokeCommand<Settings>('get_settings'),
-          tauriBridge.invokeCommand<ProcessStatus>('get_llama_server_status'),
-          tauriBridge.invokeCommand<DownloadStatus[]>('get_download_statuses'),
-          tauriBridge.invokeCommand<ChatStreamStatus[]>(
-            'get_chat_stream_statuses',
-          ),
-        ]);
-      setSettings(loadedSettings);
-      setProcessStatus(loadedProcess);
-      setDownloads(loadedDownloads);
-      setChatStatuses(loadedStreams);
-    } catch (error) {
-      setMessage(String(error));
-    }
-  };
+    return () => {
+      window.clearInterval(intervalId);
+      stopListening();
+    };
+  }, [refreshAll]);
 
   const saveSettings = async () => {
     try {
@@ -208,6 +226,16 @@ function App() {
     }
   };
 
+  const clearLogs = async () => {
+    try {
+      await tauriBridge.invokeCommand('clear_llama_server_logs');
+      setLlamaLogs([]);
+      setMessage('llama-server logs cleared.');
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
   return (
     <main className="app-shell">
       <header className="page-header">
@@ -283,6 +311,15 @@ function App() {
           <div className="row">
             <button onClick={() => void startProcess()}>Start</button>
             <button onClick={() => void stopProcess()}>Stop</button>
+          </div>
+          <div className="panel">
+            <div className="panel-header">
+              <h3>Logs</h3>
+              <button onClick={() => void clearLogs()}>Clear logs</button>
+            </div>
+            <pre className="log-panel">
+              {llamaLogs.length ? llamaLogs.join('\n') : 'No llama-server logs yet.'}
+            </pre>
           </div>
         </article>
 
