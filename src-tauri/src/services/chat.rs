@@ -362,3 +362,83 @@ fn validate_messages(messages: &[ChatMessage]) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn message(role: &str, content: &str) -> ChatMessage {
+        ChatMessage {
+            role: role.to_string(),
+            content: content.to_string(),
+        }
+    }
+
+    #[test]
+    fn validate_messages_accepts_allowed_roles_and_non_empty_content() {
+        let messages = vec![
+            message("system", "You are a helpful assistant."),
+            message("user", "Hello"),
+            message("assistant", "Hi there"),
+        ];
+
+        assert_eq!(validate_messages(&messages), Ok(()));
+    }
+
+    #[test]
+    fn validate_messages_rejects_invalid_role() {
+        let messages = vec![message("moderator", "Hello")];
+
+        assert_eq!(
+            validate_messages(&messages),
+            Err("message.role must be one of: system, user, assistant".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_messages_rejects_empty_content_after_trimming() {
+        let messages = vec![message("user", "   ")];
+
+        assert_eq!(
+            validate_messages(&messages),
+            Err("message.content cannot be empty".to_string())
+        );
+    }
+
+    #[test]
+    fn set_state_updates_existing_stream_status_fields() {
+        let inner = Arc::new(Mutex::new(ChatInner {
+            next_stream_id: 2,
+            streams: HashMap::from([(
+                "stream-1".to_string(),
+                ChatStreamRecord {
+                    status: ChatStreamStatus {
+                        stream_id: "stream-1".to_string(),
+                        state: ChatStreamState::Streaming,
+                        model: "llama-3".to_string(),
+                        bytes_received: 12,
+                        error: None,
+                    },
+                    cancel_requested: Arc::new(AtomicBool::new(false)),
+                },
+            )]),
+        }));
+
+        set_state(
+            &inner,
+            "stream-1",
+            ChatStreamState::Failed,
+            Some("boom".to_string()),
+            42,
+        );
+
+        let guard = inner.lock().expect("mutex should not be poisoned");
+        let status = &guard.streams["stream-1"].status;
+
+        assert_eq!(status.state, ChatStreamState::Failed);
+        assert_eq!(status.error.as_deref(), Some("boom"));
+        assert_eq!(status.bytes_received, 42);
+        assert_eq!(status.stream_id, "stream-1");
+        assert_eq!(status.model, "llama-3");
+    }
+}
