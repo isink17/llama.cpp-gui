@@ -475,4 +475,47 @@ mod tests {
 
         assert_eq!(err, "unknown download_id: download-missing");
     }
+
+    #[test]
+    fn cancel_download_returns_error_for_unknown_id() {
+        let service = DownloaderService::new();
+
+        let err = service
+            .cancel_download("download-missing")
+            .expect_err("expected unknown download_id to fail");
+
+        assert_eq!(err, "unknown download_id: download-missing");
+    }
+
+    #[test]
+    fn start_download_rejects_existing_destination_path() {
+        let service = DownloaderService::new();
+        let temp_dir = unique_temp_dir("downloader-existing-destination");
+        let destination = temp_dir.join("model.bin");
+        fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
+        File::create(&destination).expect("failed to create destination file");
+
+        let err = service
+            .start_download(
+                "https://example.com/model.bin".to_string(),
+                destination.to_string_lossy().to_string(),
+            )
+            .expect_err("expected existing destination_path to fail");
+
+        assert_eq!(
+            err,
+            format!("destination_path already exists: {}", destination.display())
+        );
+    }
+
+    #[test]
+    fn build_temp_path_uses_destination_file_name_and_download_id() {
+        let destination = PathBuf::from(r"C:\tmp\models\model.bin");
+        let temp_path = build_temp_path(&destination, "download-42");
+
+        assert_eq!(
+            temp_path,
+            PathBuf::from(r"C:\tmp\models\model.bin.download-42.part")
+        );
+    }
 }

@@ -194,7 +194,34 @@ mod tests {
     }
 
     #[test]
-    fn logs_are_capped_and_can_be_cleared() {
+    fn start_rejects_empty_executable_path() {
+        let mut manager = ProcessManager::new(3);
+
+        let empty_err = manager
+            .start(String::new(), vec![])
+            .expect_err("empty executable path should fail");
+        assert_eq!(empty_err, "executable_path cannot be empty");
+
+        let whitespace_err = manager
+            .start("   ".to_string(), vec![])
+            .expect_err("whitespace executable path should fail");
+        assert_eq!(whitespace_err, "executable_path cannot be empty");
+    }
+
+    #[test]
+    fn logs_clamp_low_limit_to_one_entry() {
+        let mut manager = ProcessManager::new(3);
+
+        manager.push_log("first".to_string());
+        manager.push_log("second".to_string());
+        manager.push_log("third".to_string());
+
+        assert_eq!(manager.logs(0), vec!["third".to_string()]);
+        assert_eq!(manager.logs(1), vec!["third".to_string()]);
+    }
+
+    #[test]
+    fn logs_clamp_high_limit_to_max_capacity() {
         let mut manager = ProcessManager::new(3);
 
         manager.push_log("first".to_string());
@@ -210,10 +237,35 @@ mod tests {
                 "fourth".to_string()
             ]
         );
-        assert_eq!(manager.logs(0), vec!["fourth".to_string()]);
+        assert_eq!(
+            manager.logs(usize::MAX),
+            vec![
+                "second".to_string(),
+                "third".to_string(),
+                "fourth".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn clear_logs_does_not_change_status() {
+        let mut manager = ProcessManager::new(3);
+
+        manager.push_log("first".to_string());
+        manager.push_log("second".to_string());
+
+        let status_before_clear = manager.status();
 
         manager.clear_logs();
 
+        let status_after_clear = manager.status();
+
+        assert_eq!(status_before_clear.running, status_after_clear.running);
+        assert_eq!(status_before_clear.pid, status_after_clear.pid);
+        assert_eq!(
+            status_before_clear.last_exit_code,
+            status_after_clear.last_exit_code
+        );
         assert!(manager.logs(10).is_empty());
     }
 

@@ -115,7 +115,11 @@ impl ChatStreamState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChatStreamState, DownloadState};
+    use super::{
+        ChatStreamState, ChatStreamStatus, DownloadState, DownloadStatus, LlamaServerHealthStatus,
+        Settings,
+    };
+    use serde_json::{json, to_value};
 
     #[test]
     fn terminal_state_helpers_distinguish_active_and_finished_states() {
@@ -128,6 +132,132 @@ mod tests {
         assert!(ChatStreamState::Completed.is_terminal());
         assert!(ChatStreamState::Cancelled.is_terminal());
         assert!(ChatStreamState::Failed.is_terminal());
+    }
+
+    #[test]
+    fn settings_serializes_with_camel_case_fields() {
+        let value = to_value(Settings {
+            server_url: "http://localhost:8080".to_string(),
+            max_tokens: 1024,
+            temperature: 0.25,
+        })
+        .unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "serverUrl": "http://localhost:8080",
+                "maxTokens": 1024,
+                "temperature": 0.25,
+            })
+        );
+    }
+
+    #[test]
+    fn download_state_serializes_as_camel_case_strings() {
+        assert_eq!(
+            to_value(DownloadState::Downloading).unwrap(),
+            json!("downloading")
+        );
+        assert_eq!(
+            to_value(DownloadState::Completed).unwrap(),
+            json!("completed")
+        );
+        assert_eq!(
+            to_value(DownloadState::Cancelled).unwrap(),
+            json!("cancelled")
+        );
+        assert_eq!(to_value(DownloadState::Failed).unwrap(), json!("failed"));
+    }
+
+    #[test]
+    fn download_status_serializes_with_camel_case_fields() {
+        let value = to_value(DownloadStatus {
+            download_id: "dl-1".to_string(),
+            source_url: "https://example.com/model.bin".to_string(),
+            destination_path: "C:/models/model.bin".to_string(),
+            state: DownloadState::Downloading,
+            bytes_downloaded: 128,
+            total_bytes: Some(256),
+            percent_complete: Some(50.0),
+            error: None,
+        })
+        .unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "downloadId": "dl-1",
+                "sourceUrl": "https://example.com/model.bin",
+                "destinationPath": "C:/models/model.bin",
+                "state": "downloading",
+                "bytesDownloaded": 128,
+                "totalBytes": 256,
+                "percentComplete": 50.0,
+                "error": null,
+            })
+        );
+    }
+
+    #[test]
+    fn chat_stream_state_serializes_as_camel_case_strings() {
+        assert_eq!(
+            to_value(ChatStreamState::Streaming).unwrap(),
+            json!("streaming")
+        );
+        assert_eq!(
+            to_value(ChatStreamState::Completed).unwrap(),
+            json!("completed")
+        );
+        assert_eq!(
+            to_value(ChatStreamState::Cancelled).unwrap(),
+            json!("cancelled")
+        );
+        assert_eq!(to_value(ChatStreamState::Failed).unwrap(), json!("failed"));
+    }
+
+    #[test]
+    fn chat_stream_status_serializes_with_camel_case_fields() {
+        let value = to_value(ChatStreamStatus {
+            stream_id: "stream-1".to_string(),
+            state: ChatStreamState::Streaming,
+            model: "llama-3.1".to_string(),
+            bytes_received: 4096,
+            error: Some("connection lost".to_string()),
+        })
+        .unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "streamId": "stream-1",
+                "state": "streaming",
+                "model": "llama-3.1",
+                "bytesReceived": 4096,
+                "error": "connection lost",
+            })
+        );
+    }
+
+    #[test]
+    fn health_status_serializes_with_camel_case_fields() {
+        let value = to_value(LlamaServerHealthStatus {
+            healthy: true,
+            status_code: Some(200),
+            message: Some("ok".to_string()),
+            url: "http://127.0.0.1:8080/health".to_string(),
+        })
+        .unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "healthy": true,
+                "statusCode": 200,
+                "message": "ok",
+                "url": "http://127.0.0.1:8080/health",
+            })
+        );
     }
 }
 
