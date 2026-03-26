@@ -4,7 +4,8 @@ use crate::core::models::{
 use reqwest::blocking::Client;
 use serde_json::json;
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::fmt::Display;
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -25,6 +26,13 @@ struct ChatInner {
 struct ChatStreamRecord {
     status: ChatStreamStatus,
     cancel_requested: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChatFailureKind {
+    Timeout,
+    Unavailable,
+    Other,
 }
 
 impl ChatService {
@@ -164,7 +172,9 @@ fn run_stream_worker(
             fail_stream(
                 &inner,
                 &app_handle,
+                &endpoint,
                 &stream_id,
+                ChatFailureKind::Other,
                 format!("failed to build HTTP client: {err}"),
             );
             return;
@@ -177,8 +187,10 @@ fn run_stream_worker(
             fail_stream(
                 &inner,
                 &app_handle,
+                &endpoint,
                 &stream_id,
-                format!("failed to start chat stream request: {err}"),
+                classify_reqwest_failure(&err),
+                err,
             );
             return;
         }
@@ -188,7 +200,9 @@ fn run_stream_worker(
         fail_stream(
             &inner,
             &app_handle,
+            &endpoint,
             &stream_id,
+            ChatFailureKind::Other,
             format!(
                 "chat stream request failed with HTTP status {}",
                 response.status()
@@ -228,8 +242,10 @@ fn run_stream_worker(
                 fail_stream(
                     &inner,
                     &app_handle,
+                    &endpoint,
                     &stream_id,
-                    format!("failed while reading stream response: {err}"),
+                    classify_stream_read_failure(&err),
+                    err,
                 );
                 return;
             }
@@ -312,9 +328,12 @@ fn emit_event(app_handle: &AppHandle, event: ChatStreamEvent) {
 fn fail_stream(
     inner: &Arc<Mutex<ChatInner>>,
     app_handle: &AppHandle,
+    endpoint: &str,
     stream_id: &str,
-    error: String,
+    kind: ChatFailureKind,
+    error: impl Display,
 ) {
+    let error = chat_failure_message(endpoint, kind, error);
     set_state(
         inner,
         stream_id,
@@ -350,6 +369,41 @@ fn set_state(
     }
 }
 
+fn chat_failure_message(endpoint: &str, kind: ChatFailureKind, error: impl Display) -> String {
+    match kind {
+        ChatFailureKind::Timeout => {
+            format!("chat stream at {endpoint} timed out: {error}")
+        }
+        ChatFailureKind::Unavailable => {
+            format!("chat stream at {endpoint} is unavailable: {error}")
+        }
+        ChatFailureKind::Other => format!("chat stream at {endpoint} failed: {error}"),
+    }
+}
+
+fn classify_reqwest_failure(err: &reqwest::Error) -> ChatFailureKind {
+    if err.is_timeout() {
+        ChatFailureKind::Timeout
+    } else if err.is_connect() {
+        ChatFailureKind::Unavailable
+    } else {
+        ChatFailureKind::Other
+    }
+}
+
+fn classify_stream_read_failure(err: &std::io::Error) -> ChatFailureKind {
+    match err.kind() {
+        ErrorKind::TimedOut => ChatFailureKind::Timeout,
+        ErrorKind::ConnectionRefused
+        | ErrorKind::ConnectionAborted
+        | ErrorKind::ConnectionReset
+        | ErrorKind::NotConnected
+        | ErrorKind::BrokenPipe
+        | ErrorKind::UnexpectedEof => ChatFailureKind::Unavailable,
+        _ => ChatFailureKind::Other,
+    }
+}
+
 fn validate_messages(messages: &[ChatMessage]) -> Result<(), String> {
     for msg in messages {
         let role = msg.role.trim();
@@ -366,6 +420,11 @@ fn validate_messages(messages: &[ChatMessage]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reqwest::blocking::Client;
+    use std::io::Error;
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
 
     fn message(role: &str, content: &str) -> ChatMessage {
         ChatMessage {
@@ -506,5 +565,102 @@ mod tests {
         assert_eq!(status.bytes_received, 12);
         assert_eq!(status.stream_id, "stream-1");
         assert_eq!(status.model, "llama-3");
+    }
+
+    #[test]
+    fn chat_failure_message_distinguishes_categories() {
+        let endpoint = "http://127.0.0.1:8080/v1/chat/completions";
+
+        assert_eq!(
+            chat_failure_message(endpoint, ChatFailureKind::Timeout, "deadline exceeded"),
+            "chat stream at http://127.0.0.1:8080/v1/chat/completions timed out: deadline exceeded"
+        );
+        assert_eq!(
+            chat_failure_message(endpoint, ChatFailureKind::Unavailable, "connection refused"),
+            "chat stream at http://127.0.0.1:8080/v1/chat/completions is unavailable: connection refused"
+        );
+        assert_eq!(
+            chat_failure_message(endpoint, ChatFailureKind::Other, "unexpected EOF"),
+            "chat stream at http://127.0.0.1:8080/v1/chat/completions failed: unexpected EOF"
+        );
+    }
+
+    #[test]
+    fn classify_stream_read_failure_maps_io_error_kinds() {
+        assert_eq!(
+            classify_stream_read_failure(&Error::new(ErrorKind::TimedOut, "timed out")),
+            ChatFailureKind::Timeout
+        );
+        assert_eq!(
+            classify_stream_read_failure(&Error::new(
+                ErrorKind::ConnectionReset,
+                "connection reset by peer"
+            )),
+            ChatFailureKind::Unavailable
+        );
+        assert_eq!(
+            classify_stream_read_failure(&Error::new(ErrorKind::UnexpectedEof, "unexpected eof")),
+            ChatFailureKind::Unavailable
+        );
+        assert_eq!(
+            classify_stream_read_failure(&Error::new(ErrorKind::InvalidData, "bad response")),
+            ChatFailureKind::Other
+        );
+    }
+
+    #[test]
+    fn classify_reqwest_failure_marks_connection_refused_unavailable() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("should bind ephemeral port");
+        let port = listener.local_addr().expect("local addr available").port();
+        drop(listener);
+
+        let endpoint = format!("http://127.0.0.1:{port}/v1/chat/completions");
+        let client = Client::builder().build().expect("client should build");
+        let error = client
+            .post(endpoint)
+            .json(&serde_json::json!({
+                "model": "llama-3.1",
+                "messages": [message("user", "Hello")],
+                "stream": true
+            }))
+            .send()
+            .expect_err("request should fail against closed port");
+
+        assert!(error.is_connect());
+        assert_eq!(
+            classify_reqwest_failure(&error),
+            ChatFailureKind::Unavailable
+        );
+    }
+
+    #[test]
+    fn classify_reqwest_failure_marks_hanging_server_timeout() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("should bind ephemeral port");
+        let port = listener.local_addr().expect("local addr available").port();
+
+        let server = thread::spawn(move || {
+            if let Ok((_socket, _addr)) = listener.accept() {
+                thread::sleep(Duration::from_millis(400));
+            }
+        });
+
+        let endpoint = format!("http://127.0.0.1:{port}/v1/chat/completions");
+        let client = Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post(endpoint)
+            .json(&serde_json::json!({
+                "model": "llama-3.1",
+                "messages": [message("user", "Hello")],
+                "stream": true
+            }))
+            .send()
+            .expect_err("request should time out against hanging server");
+
+        assert!(error.is_timeout());
+        assert_eq!(classify_reqwest_failure(&error), ChatFailureKind::Timeout);
+        server.join().expect("server thread should complete");
     }
 }
