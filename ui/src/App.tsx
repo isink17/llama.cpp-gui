@@ -31,6 +31,12 @@ import {
   type Settings,
 } from './lib/tauri/api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SettingsCard } from './components/SettingsCard';
+import { LlamaServerCard } from './components/LlamaServerCard';
+import { PresetsCard } from './components/PresetsCard';
+import { HistoryCard } from './components/HistoryCard';
+import { DownloaderCard } from './components/DownloaderCard';
+import { ChatCard } from './components/ChatCard';
 
 const LOG_LIMIT = 200;
 const REFRESH_INTERVAL_MS = 4000;
@@ -42,96 +48,6 @@ const createId = (prefix: string) =>
 const formatTimestamp = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-};
-
-const formatStatusLabel = (value: string) =>
-  value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-
-type FailureKind = 'timeout' | 'unavailable' | 'failure';
-
-const classifyFailureMessage = (message: string): FailureKind => {
-  const normalized = message.trim().toLowerCase();
-
-  if (normalized.includes('timed out') || normalized.includes('timeout')) {
-    return 'timeout';
-  }
-
-  if (
-    normalized.includes('unavailable') ||
-    normalized.includes('connection refused') ||
-    normalized.includes('failed to reach')
-  ) {
-    return 'unavailable';
-  }
-
-  return 'failure';
-};
-
-const getFailureLabel = (kind: FailureKind) => {
-  switch (kind) {
-    case 'timeout':
-      return 'Timeout';
-    case 'unavailable':
-      return 'Unavailable';
-    case 'failure':
-      return 'Failure';
-  }
-};
-
-const getFailureTone = (kind: FailureKind) => {
-  switch (kind) {
-    case 'timeout':
-      return 'info';
-    case 'unavailable':
-    case 'failure':
-      return 'danger';
-  }
-};
-
-const getFailureDetailClass = (kind: FailureKind) => {
-  switch (kind) {
-    case 'timeout':
-      return 'timeout';
-    case 'unavailable':
-      return 'unavailable';
-    case 'failure':
-      return 'failure';
-  }
-};
-
-const buildFailureView = (message: string) => {
-  const kind = classifyFailureMessage(message);
-
-  return {
-    kind,
-    label: getFailureLabel(kind),
-    tone: getFailureTone(kind),
-    detailClass: getFailureDetailClass(kind),
-  };
-};
-
-const getToneForState = (value: string) => {
-  switch (value.toLowerCase()) {
-    case 'running':
-    case 'streaming':
-    case 'completed':
-    case 'healthy':
-      return 'success';
-    case 'downloading':
-      return 'info';
-    case 'cancelled':
-    case 'stopped':
-    case 'idle':
-    case 'not checked':
-      return 'neutral';
-    case 'failed':
-    case 'unhealthy':
-      return 'danger';
-    default:
-      return 'neutral';
-  }
 };
 
 function App() {
@@ -519,55 +435,6 @@ function App() {
     });
   };
 
-  const processHealthLabel = processHealth
-    ? processHealth.healthy
-      ? 'Healthy'
-      : 'Unhealthy'
-    : 'Not checked';
-  const processHealthClass = processHealth
-    ? processHealth.healthy
-      ? 'healthy'
-      : 'unhealthy'
-    : 'idle';
-  const processBadgeLabel = processStatus.running
-    ? 'Running'
-    : processStatus.lastExitCode !== undefined &&
-        processStatus.lastExitCode !== null
-      ? `Exited ${processStatus.lastExitCode}`
-      : 'Stopped';
-  const processBadgeTone = processStatus.running
-    ? 'success'
-    : processStatus.lastExitCode !== undefined &&
-        processStatus.lastExitCode !== null
-      ? 'danger'
-      : 'neutral';
-  const chatSummaryLabel = activeStream
-    ? `Streaming ${activeStream.model}`
-    : chatStatuses.length
-      ? 'Idle'
-      : 'No streams';
-  const chatSummaryTone = activeStream
-    ? 'info'
-    : chatStatuses.some((item) => item.state === 'failed')
-      ? 'danger'
-      : chatStatuses.some((item) => item.state === 'completed')
-        ? 'success'
-        : 'neutral';
-  const refreshStatusLabel = refreshIssue ? 'Refresh failed' : 'Sync live';
-  const refreshFailureView = refreshIssue ? buildFailureView(refreshIssue) : null;
-  const refreshStatusTone = refreshFailureView ? refreshFailureView.tone : 'success';
-  const refreshStatusHint = refreshIssue
-    ? refreshIssue
-    : 'Auto-refresh polling is active.';
-  const processHealthFailureView =
-    processHealth && !processHealth.healthy && processHealth.message
-      ? buildFailureView(processHealth.message)
-      : null;
-  const processHealthDetailTone = processHealth?.healthy
-    ? 'success'
-    : processHealthFailureView
-      ? processHealthFailureView.tone
-      : 'danger';
   const isRefreshing = isBusy('refresh');
   const isSavingSettings = isBusy('saveSettings');
   const isCheckingHealth = isBusy('checkHealth');
@@ -607,476 +474,93 @@ function App() {
       </header>
 
       <section className="grid">
-        <article className="card">
-          <h2>Settings</h2>
-          <label>
-            Server URL
-            <input
-              value={settings.serverUrl}
-              onChange={(e) =>
-                setSettings((prev) => ({ ...prev, serverUrl: e.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Max tokens
-            <input
-              type="number"
-              value={settings.maxTokens}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  maxTokens: Number(e.target.value),
-                }))
-              }
-            />
-          </label>
-          <label>
-            Temperature
-            <input
-              type="number"
-              step="0.1"
-              value={settings.temperature}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  temperature: Number(e.target.value),
-                }))
-              }
-            />
-          </label>
-          <button onClick={() => void saveSettings()} disabled={isSavingSettings}>
-            {isSavingSettings ? 'Saving...' : 'Save settings'}
-          </button>
-        </article>
+        <SettingsCard
+          settings={settings}
+          isSaving={isSavingSettings}
+          onServerUrlChange={(value) =>
+            setSettings((prev) => ({ ...prev, serverUrl: value }))
+          }
+          onMaxTokensChange={(value) =>
+            setSettings((prev) => ({ ...prev, maxTokens: value }))
+          }
+          onTemperatureChange={(value) =>
+            setSettings((prev) => ({ ...prev, temperature: value }))
+          }
+          onSave={() => void saveSettings()}
+        />
 
-        <article className="card">
-          <h2>llama-server</h2>
-          <div className="status-summary">
-            <span className={`status-badge ${refreshStatusTone}`}>
-              {refreshStatusLabel}
-            </span>
-            <span className="hint">{refreshStatusHint}</span>
-          </div>
-          {refreshFailureView ? (
-            <div className={`status-detail ${refreshFailureView.detailClass}`}>
-              <span className={`status-badge ${refreshFailureView.tone}`}>
-                {refreshFailureView.label}
-              </span>
-              <p className="status-detail-text">{refreshIssue}</p>
-            </div>
-          ) : null}
-          <div className="status-summary">
-            <span className={`status-badge ${processBadgeTone}`}>
-              {processBadgeLabel}
-            </span>
-            <span className="hint">PID {processStatus.pid ?? '-'}</span>
-          </div>
-          <div className="health-panel">
-            <div className="panel-header">
-              <h3>Health</h3>
-              <button
-                className="secondary"
-                onClick={() => void checkProcessHealth()}
-                disabled={isCheckingHealth}
-              >
-                {isCheckingHealth ? 'Checking...' : 'Check health'}
-              </button>
-            </div>
-            <div className="health-summary">
-              <span className={`status-pill ${processHealthClass}`}>
-                {processHealthLabel}
-              </span>
-              <span className="hint">
-                {processHealth?.statusCode !== undefined &&
-                processHealth?.statusCode !== null
-                  ? `HTTP ${processHealth.statusCode}`
-                : processHealth?.url ?? 'No health check run yet.'}
-              </span>
-            </div>
-            {processHealth?.message ? (
-              <div
-                className={`status-detail ${
-                  processHealthFailureView?.detailClass ?? 'failure'
-                }`}
-              >
-                <span className={`status-badge ${processHealthDetailTone}`}>
-                  {processHealth.healthy
-                    ? 'Service responding'
-                    : processHealthFailureView?.label ?? 'Failure'}
-                </span>
-                <p className="status-detail-text">{processHealth.message}</p>
-              </div>
-            ) : null}
-          </div>
-          <label>
-            Executable path
-            <input
-              value={processPath}
-              onChange={(e) => setProcessPath(e.target.value)}
-            />
-          </label>
-          <label>
-            Args
-            <input
-              value={processArgs}
-              onChange={(e) => setProcessArgs(e.target.value)}
-            />
-          </label>
-          <div className="row">
-            <button onClick={() => void startProcess()} disabled={isProcessTransitionBusy}>
-              {isBusy('startProcess') ? 'Starting...' : 'Start'}
-            </button>
-            <button onClick={() => void stopProcess()} disabled={isProcessTransitionBusy}>
-              {isBusy('stopProcess') ? 'Stopping...' : 'Stop'}
-            </button>
-          </div>
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Logs</h3>
-              <button onClick={() => void clearLogs()} disabled={isClearingLogs}>
-                {isClearingLogs ? 'Clearing...' : 'Clear logs'}
-              </button>
-            </div>
-            <pre className="log-panel">
-              {llamaLogs.length ? llamaLogs.join('\n') : 'No llama-server logs yet.'}
-            </pre>
-          </div>
-        </article>
+        <LlamaServerCard
+          refreshIssue={refreshIssue}
+          processStatus={processStatus}
+          processHealth={processHealth}
+          processPath={processPath}
+          processArgs={processArgs}
+          isCheckingHealth={isCheckingHealth}
+          isProcessTransitionBusy={isProcessTransitionBusy}
+          isStartingProcess={isBusy('startProcess')}
+          isStoppingProcess={isBusy('stopProcess')}
+          isClearingLogs={isClearingLogs}
+          onProcessPathChange={setProcessPath}
+          onProcessArgsChange={setProcessArgs}
+          onCheckHealth={() => void checkProcessHealth()}
+          onStartProcess={() => void startProcess()}
+          onStopProcess={() => void stopProcess()}
+          onClearLogs={() => void clearLogs()}
+          llamaLogs={llamaLogs}
+        />
 
-        <article className="card">
-          <div className="panel-header">
-            <h2>Presets</h2>
-            <button className="secondary" onClick={resetPresetDraft}>
-              New preset
-            </button>
-          </div>
-          <label>
-            Name
-            <input
-              value={presetDraft.name}
-              onChange={(e) =>
-                setPresetDraft((prev) => ({ ...prev, name: e.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Preset ID
-            <input
-              value={presetDraft.id}
-              onChange={(e) =>
-                setPresetDraft((prev) => ({ ...prev, id: e.target.value }))
-              }
-              placeholder="Generated automatically for new presets"
-            />
-          </label>
-          <label>
-            System prompt
-            <textarea
-              value={presetDraft.systemPrompt}
-              onChange={(e) =>
-                setPresetDraft((prev) => ({
-                  ...prev,
-                  systemPrompt: e.target.value,
-                }))
-              }
-              rows={4}
-            />
-          </label>
-          <div className="row">
-            <button onClick={() => void savePreset()} disabled={isSavingPreset}>
-              {isSavingPreset ? 'Saving...' : 'Save preset'}
-            </button>
-            <button className="secondary" onClick={resetPresetDraft}>
-              Clear form
-            </button>
-          </div>
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Saved presets</h3>
-              <span className="hint">{presets.length} items</span>
-            </div>
-            <div className="entry-list">
-              {presets.length ? (
-                presets.map((preset) => (
-                  <article className="entry-card" key={preset.id}>
-                    <div className="entry-card-header">
-                      <div>
-                        <strong>{preset.name}</strong>
-                        <div className="hint">{preset.id}</div>
-                      </div>
-                      <div className="hint">{formatTimestamp(preset.createdAt)}</div>
-                    </div>
-                    <p>{preset.systemPrompt || 'No system prompt stored.'}</p>
-                    <div className="row">
-                      <button
-                        className="secondary"
-                        onClick={() => editPreset(preset)}
-                        disabled={isDeletingPreset(preset.id)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="danger"
-                        onClick={() => void deletePreset(preset.id)}
-                        disabled={isDeletingPreset(preset.id)}
-                      >
-                        {isDeletingPreset(preset.id) ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">No presets saved yet.</p>
-              )}
-            </div>
-          </div>
-        </article>
+        <PresetsCard
+          presets={presets}
+          presetDraft={presetDraft}
+          onNewPreset={resetPresetDraft}
+          onResetPresetDraft={resetPresetDraft}
+          onPresetDraftChange={setPresetDraft}
+          onSavePreset={() => void savePreset()}
+          onEditPreset={editPreset}
+          onDeletePreset={(presetId) => void deletePreset(presetId)}
+          formatTimestamp={formatTimestamp}
+          isSaving={isSavingPreset}
+          isDeletingPreset={isDeletingPreset}
+        />
 
-        <article className="card">
-          <div className="panel-header">
-            <h2>History</h2>
-            <button
-              className="secondary"
-              onClick={() => void clearHistory()}
-              disabled={isClearingHistory}
-            >
-              {isClearingHistory ? 'Clearing...' : 'Clear history'}
-            </button>
-          </div>
-          <div className="field-grid">
-            <label>
-              Role
-              <select
-                value={historyRole}
-                onChange={(e) =>
-                  setHistoryRole(e.target.value as HistoryEntry['role'])
-                }
-              >
-                {HISTORY_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Count
-              <input value={historyEntries.length} readOnly />
-            </label>
-          </div>
-          <label>
-            Content
-            <textarea
-              value={historyContent}
-              onChange={(e) => setHistoryContent(e.target.value)}
-              rows={4}
-              placeholder="Append a history entry manually."
-            />
-          </label>
-          <div className="row">
-            <button onClick={() => void appendHistoryEntry()} disabled={isAppendingHistory}>
-              {isAppendingHistory ? 'Appending...' : 'Append history'}
-            </button>
-          </div>
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Stored entries</h3>
-              <span className="hint">Newest first</span>
-            </div>
-            <div className="entry-list">
-              {historyEntries.length ? (
-                [...historyEntries].reverse().map((entry) => (
-                  <article className="entry-card" key={entry.id}>
-                    <div className="entry-card-header">
-                      <div>
-                        <strong>{entry.role}</strong>
-                        <div className="hint">{entry.id}</div>
-                      </div>
-                      <div className="hint">{formatTimestamp(entry.timestamp)}</div>
-                    </div>
-                    <p>{entry.content}</p>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">No history entries saved yet.</p>
-              )}
-            </div>
-          </div>
-        </article>
+        <HistoryCard
+          historyEntries={historyEntries}
+          historyRole={historyRole}
+          historyContent={historyContent}
+          onRoleChange={setHistoryRole}
+          onContentChange={setHistoryContent}
+          onClearHistory={() => void clearHistory()}
+          onAppendHistoryEntry={() => void appendHistoryEntry()}
+          formatTimestamp={formatTimestamp}
+          isClearing={isClearingHistory}
+          isAppending={isAppendingHistory}
+        />
 
-        <article className="card">
-          <h2>Downloader</h2>
-          <div className="status-summary">
-            <span className="status-badge neutral">
-              {downloads.length ? `${downloads.length} tracked` : 'No downloads'}
-            </span>
-            <span className="hint">State updates refresh automatically</span>
-          </div>
-          <label>
-            Source URL
-            <input
-              value={downloadUrl}
-              onChange={(e) => setDownloadUrl(e.target.value)}
-            />
-          </label>
-          <label>
-            Destination path
-            <input
-              value={downloadPath}
-              onChange={(e) => setDownloadPath(e.target.value)}
-            />
-          </label>
-          <button onClick={() => void startDownload()} disabled={isStartingDownload}>
-            {isStartingDownload ? 'Starting...' : 'Start download'}
-          </button>
-          <ul>
-              {downloads.map((item) => (
-                <li key={item.downloadId}>
-                  <div className="status-summary">
-                    <span className={`status-badge ${getToneForState(item.state)}`}>
-                      {formatStatusLabel(item.state)}
-                    </span>
-                    <strong>{item.downloadId}</strong>
-                  </div>
-                  {item.state === 'failed' || item.error ? (
-                    (() => {
-                      const failureView = item.error
-                        ? buildFailureView(item.error)
-                        : {
-                            kind: 'failure' as const,
-                            label: 'Failure',
-                            tone: 'danger',
-                            detailClass: 'failure',
-                          };
+        <DownloaderCard
+          downloads={downloads}
+          downloadUrl={downloadUrl}
+          downloadPath={downloadPath}
+          isStartingDownload={isStartingDownload}
+          isCancellingDownload={isCancellingDownload}
+          onDownloadUrlChange={setDownloadUrl}
+          onDownloadPathChange={setDownloadPath}
+          onStartDownload={() => void startDownload()}
+          onCancelDownload={(downloadId) => void cancelDownload(downloadId)}
+        />
 
-                      return (
-                        <div className={`status-detail ${failureView.detailClass}`}>
-                          <span className={`status-badge ${failureView.tone}`}>
-                            {failureView.label}
-                          </span>
-                          <p className="status-detail-text">
-                            {item.error ?? 'The download ended in a failed state.'}
-                          </p>
-                        </div>
-                      );
-                    })()
-                  ) : null}
-                  {item.sourceUrl ? <div className="hint">{item.sourceUrl}</div> : null}
-                  {item.destinationPath ? (
-                    <div className="hint">{item.destinationPath}</div>
-                  ) : null}
-                  <div className="hint">
-                    {item.percentComplete !== null &&
-                    item.percentComplete !== undefined
-                      ? `${item.percentComplete.toFixed(1)}%`
-                      : 'Progress unavailable'}
-                  </div>
-                  <div className="row">
-                    <button
-                      onClick={() => void cancelDownload(item.downloadId)}
-                      disabled={isCancellingDownload(item.downloadId)}
-                    >
-                      {isCancellingDownload(item.downloadId)
-                        ? 'Cancelling...'
-                        : 'Cancel'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-          </ul>
-        </article>
-
-        <article className="card chat-card">
-          <h2>Chat stream</h2>
-          <div className="status-summary">
-            <span className={`status-badge ${chatSummaryTone}`}>
-              {chatSummaryLabel}
-            </span>
-            <span className="hint">{chatStatuses.length} tracked</span>
-          </div>
-          <label>
-            Model
-            <input
-              value={chatModel}
-              onChange={(e) => setChatModel(e.target.value)}
-            />
-          </label>
-          <label>
-            Prompt
-            <textarea
-              value={chatPrompt}
-              onChange={(e) => setChatPrompt(e.target.value)}
-              rows={3}
-            />
-          </label>
-          <div className="row">
-            <button onClick={() => void startChat()} disabled={isStartingChat}>
-              {isStartingChat ? 'Starting...' : 'Start stream'}
-            </button>
-            <button
-              onClick={() => void cancelChat()}
-              disabled={!activeStream || isCancellingChat}
-            >
-              {isCancellingChat ? 'Cancelling...' : 'Cancel stream'}
-            </button>
-          </div>
-          <div className="panel">
-            <div className="panel-header">
-              <h3>Stream statuses</h3>
-              <span className="hint">Live refresh updates</span>
-            </div>
-            <div className="entry-list">
-              {chatStatuses.length ? (
-                chatStatuses.map((status) => {
-                  const failureView =
-                    status.error || status.state === 'failed'
-                      ? status.error
-                        ? buildFailureView(status.error)
-                        : {
-                            kind: 'failure' as const,
-                            label: 'Failure',
-                            tone: 'danger',
-                            detailClass: 'failure',
-                          }
-                      : null;
-
-                  return (
-                    <article className="entry-card" key={status.streamId}>
-                      <div className="entry-card-header">
-                        <div className="status-summary">
-                          <span
-                            className={`status-badge ${getToneForState(status.state)}`}
-                          >
-                            {formatStatusLabel(status.state)}
-                          </span>
-                          <strong>{status.model}</strong>
-                        </div>
-                        <div className="hint">{status.streamId}</div>
-                      </div>
-                      <div className="hint">
-                        Bytes received: {status.bytesReceived.toLocaleString()}
-                      </div>
-                      {failureView ? (
-                        <div className={`status-detail ${failureView.detailClass}`}>
-                          <span className={`status-badge ${failureView.tone}`}>
-                            {failureView.label}
-                          </span>
-                          <p className="status-detail-text">
-                            {status.error ?? 'The stream ended in a failed state.'}
-                          </p>
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })
-              ) : (
-                <p className="empty-state">No chat streams tracked yet.</p>
-              )}
-            </div>
-          </div>
-          <pre>{chatLog.join('')}</pre>
-        </article>
+        <ChatCard
+          chatModel={chatModel}
+          chatPrompt={chatPrompt}
+          chatStatuses={chatStatuses}
+          chatLog={chatLog}
+          isStartingChat={isStartingChat}
+          isCancellingChat={isCancellingChat}
+          canCancelChat={Boolean(activeStream)}
+          onChatModelChange={setChatModel}
+          onChatPromptChange={setChatPrompt}
+          onStartChat={() => void startChat()}
+          onCancelChat={() => void cancelChat()}
+        />
       </section>
 
       <footer className="status-line">
