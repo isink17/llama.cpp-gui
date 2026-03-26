@@ -17,13 +17,16 @@ Run this checklist for each migration PR when relevant.
 
 - [ ] `llama-server` starts
 - [ ] `llama-server` stops cleanly
-- [ ] Error states are visible
+- [ ] Health check failure states are visible
+- [ ] Refresh failure surfacing is visible in the UI
 
 ## Chat
 
 - [ ] Prompt request succeeds
 - [ ] Streaming response is visible
 - [ ] Generation cancel works
+- [ ] Timeout errors are surfaced clearly
+- [ ] Server unavailable errors are surfaced clearly
 
 ## Downloader
 

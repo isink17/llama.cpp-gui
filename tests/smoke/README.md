@@ -51,11 +51,14 @@ Use `--skip-prereq-check` only when `cargo` and `npm` are already confirmed avai
 - `npm run build` in `ui/`
 - `cargo fmt --check --manifest-path src-tauri/Cargo.toml`
 - Basic command existence checks for `cargo` and `npm`
+- Fast signal for frontend refresh failure surfacing and process health visibility
+- Manual follow-up for chat timeout and unavailable-state handling
 
 ## Notes
 
 - The scripts are non-destructive.
 - They are intended to stay fast enough for local pre-PR validation.
+- Use the manual checklist for behavioral coverage that cannot be fully asserted by the smoke scripts alone.
 
 ## Manual Checklist
 
