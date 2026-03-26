@@ -365,3 +365,114 @@ fn build_temp_path(destination_path: &PathBuf, download_id: &str) -> PathBuf {
     temp_path.set_file_name(temp_file_name);
     temp_path
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static UNIQUE_SUFFIX: AtomicU64 = AtomicU64::new(1);
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let suffix = UNIQUE_SUFFIX.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!("{name}-{suffix}"))
+    }
+
+    fn active_download_status(destination_path: String) -> DownloadStatus {
+        DownloadStatus {
+            download_id: "download-1".to_string(),
+            source_url: "https://example.com/model.bin".to_string(),
+            destination_path,
+            state: DownloadState::Downloading,
+            bytes_downloaded: 0,
+            total_bytes: None,
+            percent_complete: None,
+            error: None,
+        }
+    }
+
+    #[test]
+    fn start_download_rejects_empty_source_url() {
+        let service = DownloaderService::new();
+        let destination = unique_temp_dir("downloader-empty-source").join("model.bin");
+
+        let err = service
+            .start_download("   ".to_string(), destination.to_string_lossy().to_string())
+            .expect_err("expected empty source_url to fail");
+
+        assert_eq!(err, "source_url cannot be empty");
+    }
+
+    #[test]
+    fn start_download_rejects_non_http_source_url() {
+        let service = DownloaderService::new();
+        let destination = unique_temp_dir("downloader-bad-url").join("model.bin");
+
+        let err = service
+            .start_download(
+                "ftp://example.com/model.bin".to_string(),
+                destination.to_string_lossy().to_string(),
+            )
+            .expect_err("expected non-http source_url to fail");
+
+        assert_eq!(err, "source_url must start with http:// or https://");
+    }
+
+    #[test]
+    fn start_download_rejects_empty_destination_path() {
+        let service = DownloaderService::new();
+
+        let err = service
+            .start_download(
+                "https://example.com/model.bin".to_string(),
+                "   ".to_string(),
+            )
+            .expect_err("expected empty destination_path to fail");
+
+        assert_eq!(err, "destination_path cannot be empty");
+    }
+
+    #[test]
+    fn start_download_rejects_duplicate_active_destination() {
+        let service = DownloaderService::new();
+        let destination = unique_temp_dir("downloader-duplicate").join("model.bin");
+        let destination_str = destination.to_string_lossy().to_string();
+
+        {
+            let mut inner = service.inner.lock().expect("mutex poisoned");
+            inner.downloads.insert(
+                "download-99".to_string(),
+                DownloadRecord {
+                    status: active_download_status(destination_str.clone()),
+                    cancel_requested: Arc::new(AtomicBool::new(false)),
+                },
+            );
+        }
+
+        let err = service
+            .start_download(
+                "https://example.com/model.bin".to_string(),
+                destination_str.clone(),
+            )
+            .expect_err("expected duplicate destination to fail");
+
+        assert_eq!(
+            err,
+            format!(
+                "an active download already targets destination_path {}",
+                destination.display()
+            )
+        );
+    }
+
+    #[test]
+    fn get_download_status_returns_error_for_unknown_id() {
+        let service = DownloaderService::new();
+
+        let err = service
+            .get_download_status("download-missing")
+            .expect_err("expected unknown download_id to fail");
+
+        assert_eq!(err, "unknown download_id: download-missing");
+    }
+}

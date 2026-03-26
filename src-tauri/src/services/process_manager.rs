@@ -177,3 +177,54 @@ fn spawn_log_reader<R: std::io::Read + Send + 'static>(
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessManager;
+
+    #[test]
+    fn initial_status_is_not_running() {
+        let mut manager = ProcessManager::new(3);
+
+        let status = manager.status();
+
+        assert!(!status.running);
+        assert_eq!(status.pid, None);
+        assert_eq!(status.last_exit_code, None);
+    }
+
+    #[test]
+    fn logs_are_capped_and_can_be_cleared() {
+        let mut manager = ProcessManager::new(3);
+
+        manager.push_log("first".to_string());
+        manager.push_log("second".to_string());
+        manager.push_log("third".to_string());
+        manager.push_log("fourth".to_string());
+
+        assert_eq!(
+            manager.logs(10),
+            vec![
+                "second".to_string(),
+                "third".to_string(),
+                "fourth".to_string()
+            ]
+        );
+        assert_eq!(manager.logs(0), vec!["fourth".to_string()]);
+
+        manager.clear_logs();
+
+        assert!(manager.logs(10).is_empty());
+    }
+
+    #[test]
+    fn stop_without_running_process_returns_status() {
+        let mut manager = ProcessManager::new(3);
+
+        let status = manager.stop().expect("stop should not error when idle");
+
+        assert!(!status.running);
+        assert_eq!(status.pid, None);
+        assert_eq!(status.last_exit_code, None);
+    }
+}
