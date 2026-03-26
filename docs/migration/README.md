@@ -30,6 +30,20 @@ As of this branch, the Tauri backend registers these command groups in `src-taur
 - downloader: start/cancel/status commands
 - chat: start/cancel/status commands
 
+### Command / Event Catalog
+
+Backend commands currently registered with Tauri:
+
+- Persistence/data: `get_settings`, `save_settings`, `get_presets`, `save_preset`, `delete_preset`, `get_history`, `append_history`, `clear_history`
+- Process: `start_llama_server`, `stop_llama_server`, `get_llama_server_status`, `get_llama_server_logs`, `clear_llama_server_logs`, `check_llama_server_health`
+- Downloader: `start_download`, `cancel_download`, `get_download_status`, `get_download_statuses`
+- Chat: `start_chat_stream`, `cancel_chat_stream`, `get_chat_stream_status`, `get_chat_stream_statuses`
+- Misc: `ping`
+
+Emitted chat event:
+
+- `chat_stream_event`
+
 Frontend wiring is still a baseline bridge in `ui/src/lib/tauri/index.ts` and `ui/src/App.tsx`:
 
 - `invokeCommand(...)` is used for command calls
