@@ -1,8 +1,9 @@
 use crate::core::models::{DownloadState, DownloadStatus};
 use reqwest::blocking::Client;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -23,6 +24,13 @@ struct DownloaderInner {
 struct DownloadRecord {
     status: DownloadStatus,
     cancel_requested: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DownloadFailureKind {
+    Timeout,
+    Unavailable,
+    Other,
 }
 
 impl DownloaderService {
@@ -186,7 +194,11 @@ fn run_download_worker(
         Err(err) => {
             update_status(&inner, &download_id, |status| {
                 status.state = DownloadState::Failed;
-                status.error = Some(format!("failed to build HTTP client: {err}"));
+                status.error = Some(download_failure_message(
+                    &source_url,
+                    DownloadFailureKind::Other,
+                    format!("failed to build HTTP client: {err}"),
+                ));
             });
             return;
         }
@@ -197,7 +209,11 @@ fn run_download_worker(
         Err(err) => {
             update_status(&inner, &download_id, |status| {
                 status.state = DownloadState::Failed;
-                status.error = Some(format!("failed to start download: {err}"));
+                status.error = Some(download_failure_message(
+                    &source_url,
+                    classify_reqwest_failure(&err),
+                    err,
+                ));
             });
             return;
         }
@@ -206,9 +222,13 @@ fn run_download_worker(
     if !response.status().is_success() {
         update_status(&inner, &download_id, |status| {
             status.state = DownloadState::Failed;
-            status.error = Some(format!(
-                "download request failed with HTTP status {}",
-                response.status()
+            status.error = Some(download_failure_message(
+                &source_url,
+                DownloadFailureKind::Other,
+                format!(
+                    "download request failed with HTTP status {}",
+                    response.status()
+                ),
             ));
         });
         let _ = fs::remove_file(&temp_path);
@@ -257,7 +277,11 @@ fn run_download_worker(
             Err(err) => {
                 update_status(&inner, &download_id, |status| {
                     status.state = DownloadState::Failed;
-                    status.error = Some(format!("failed while reading response body: {err}"));
+                    status.error = Some(download_failure_message(
+                        &source_url,
+                        classify_read_failure(&err),
+                        err,
+                    ));
                 });
                 let _ = fs::remove_file(&temp_path);
                 return;
@@ -366,10 +390,54 @@ fn build_temp_path(destination_path: &PathBuf, download_id: &str) -> PathBuf {
     temp_path
 }
 
+fn download_failure_message(
+    source_url: &str,
+    kind: DownloadFailureKind,
+    error: impl Display,
+) -> String {
+    match kind {
+        DownloadFailureKind::Timeout => {
+            format!("download from {source_url} timed out: {error}")
+        }
+        DownloadFailureKind::Unavailable => {
+            format!("download from {source_url} is unavailable: {error}")
+        }
+        DownloadFailureKind::Other => format!("download from {source_url} failed: {error}"),
+    }
+}
+
+fn classify_reqwest_failure(err: &reqwest::Error) -> DownloadFailureKind {
+    if err.is_timeout() {
+        DownloadFailureKind::Timeout
+    } else if err.is_connect() {
+        DownloadFailureKind::Unavailable
+    } else {
+        DownloadFailureKind::Other
+    }
+}
+
+fn classify_read_failure(err: &std::io::Error) -> DownloadFailureKind {
+    match err.kind() {
+        ErrorKind::TimedOut => DownloadFailureKind::Timeout,
+        ErrorKind::ConnectionRefused
+        | ErrorKind::ConnectionAborted
+        | ErrorKind::ConnectionReset
+        | ErrorKind::NotConnected
+        | ErrorKind::BrokenPipe
+        | ErrorKind::UnexpectedEof => DownloadFailureKind::Unavailable,
+        _ => DownloadFailureKind::Other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reqwest::blocking::Client;
+    use std::io::Error;
+    use std::net::TcpListener;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::thread;
+    use std::time::Duration;
 
     static UNIQUE_SUFFIX: AtomicU64 = AtomicU64::new(1);
 
@@ -517,5 +585,103 @@ mod tests {
             temp_path,
             PathBuf::from(r"C:\tmp\models\model.bin.download-42.part")
         );
+    }
+
+    #[test]
+    fn download_failure_message_distinguishes_categories() {
+        let source_url = "https://example.com/model.bin";
+
+        assert_eq!(
+            download_failure_message(
+                source_url,
+                DownloadFailureKind::Timeout,
+                "deadline exceeded"
+            ),
+            "download from https://example.com/model.bin timed out: deadline exceeded"
+        );
+        assert_eq!(
+            download_failure_message(
+                source_url,
+                DownloadFailureKind::Unavailable,
+                "connection refused"
+            ),
+            "download from https://example.com/model.bin is unavailable: connection refused"
+        );
+        assert_eq!(
+            download_failure_message(source_url, DownloadFailureKind::Other, "bad response"),
+            "download from https://example.com/model.bin failed: bad response"
+        );
+    }
+
+    #[test]
+    fn classify_read_failure_maps_io_error_kinds() {
+        assert_eq!(
+            classify_read_failure(&Error::new(ErrorKind::TimedOut, "timed out")),
+            DownloadFailureKind::Timeout
+        );
+        assert_eq!(
+            classify_read_failure(&Error::new(
+                ErrorKind::ConnectionReset,
+                "connection reset by peer"
+            )),
+            DownloadFailureKind::Unavailable
+        );
+        assert_eq!(
+            classify_read_failure(&Error::new(ErrorKind::UnexpectedEof, "unexpected eof")),
+            DownloadFailureKind::Unavailable
+        );
+        assert_eq!(
+            classify_read_failure(&Error::new(ErrorKind::InvalidData, "bad response")),
+            DownloadFailureKind::Other
+        );
+    }
+
+    #[test]
+    fn classify_reqwest_failure_marks_connection_refused_unavailable() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("should bind ephemeral port");
+        let port = listener.local_addr().expect("local addr available").port();
+        drop(listener);
+
+        let source_url = format!("http://127.0.0.1:{port}/model.bin");
+        let client = Client::builder().build().expect("client should build");
+        let error = client
+            .get(&source_url)
+            .send()
+            .expect_err("request should fail against closed port");
+
+        assert!(error.is_connect());
+        assert_eq!(
+            classify_reqwest_failure(&error),
+            DownloadFailureKind::Unavailable
+        );
+    }
+
+    #[test]
+    fn classify_reqwest_failure_marks_hanging_server_timeout() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("should bind ephemeral port");
+        let port = listener.local_addr().expect("local addr available").port();
+
+        let server = thread::spawn(move || {
+            if let Ok((_socket, _addr)) = listener.accept() {
+                thread::sleep(Duration::from_millis(400));
+            }
+        });
+
+        let source_url = format!("http://127.0.0.1:{port}/model.bin");
+        let client = Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .expect("client should build");
+        let error = client
+            .get(&source_url)
+            .send()
+            .expect_err("request should time out against hanging server");
+
+        assert!(error.is_timeout());
+        assert_eq!(
+            classify_reqwest_failure(&error),
+            DownloadFailureKind::Timeout
+        );
+        server.join().expect("server thread should complete");
     }
 }

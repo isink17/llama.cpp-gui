@@ -164,6 +164,32 @@ mod tests {
         }
     }
 
+    struct ErrorDownloader;
+
+    impl DownloadCommandBackend for ErrorDownloader {
+        fn start_download(
+            &self,
+            source_url: String,
+            destination_path: String,
+        ) -> Result<DownloadStatus, String> {
+            Err(format!(
+                "start failed for {source_url} -> {destination_path}"
+            ))
+        }
+
+        fn cancel_download(&self, download_id: &str) -> Result<DownloadStatus, String> {
+            Err(format!("cancel failed for {download_id}"))
+        }
+
+        fn get_download_status(&self, download_id: &str) -> Result<DownloadStatus, String> {
+            Err(format!("status failed for {download_id}"))
+        }
+
+        fn get_download_statuses(&self) -> Result<Vec<DownloadStatus>, String> {
+            Err("status list failed".to_string())
+        }
+    }
+
     fn status(download_id: &str) -> DownloadStatus {
         DownloadStatus {
             download_id: download_id.to_string(),
@@ -211,6 +237,32 @@ mod tests {
         assert_eq!(cancel_status.download_id, "download-7");
         assert_eq!(status.download_id, "download-7");
         assert_eq!(statuses.len(), 2);
+    }
+
+    #[test]
+    fn downloader_helpers_propagate_backend_errors_verbatim() {
+        let downloader = ErrorDownloader;
+
+        let start_err = start_download_with(
+            &downloader,
+            "https://example.com/model.bin".to_string(),
+            "C:/models/model.bin".to_string(),
+        )
+        .expect_err("expected start helper to forward backend error");
+        let cancel_err = cancel_download_with(&downloader, "download-7".to_string())
+            .expect_err("expected cancel helper to forward backend error");
+        let status_err = get_download_status_with(&downloader, "download-7".to_string())
+            .expect_err("expected status helper to forward backend error");
+        let statuses_err = get_download_statuses_with(&downloader)
+            .expect_err("expected statuses helper to forward backend error");
+
+        assert_eq!(
+            start_err,
+            "start failed for https://example.com/model.bin -> C:/models/model.bin"
+        );
+        assert_eq!(cancel_err, "cancel failed for download-7");
+        assert_eq!(status_err, "status failed for download-7");
+        assert_eq!(statuses_err, "status list failed");
     }
 
     #[test]
