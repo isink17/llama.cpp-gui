@@ -71,3 +71,55 @@ pub struct DownloadStatus {
     pub percent_complete: Option<f64>,
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatStreamRequest {
+    pub server_url: Option<String>,
+    pub model: String,
+    pub messages: Vec<ChatMessage>,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ChatStreamState {
+    Streaming,
+    Completed,
+    Cancelled,
+    Failed,
+}
+
+impl ChatStreamState {
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Cancelled | Self::Failed)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatStreamStatus {
+    pub stream_id: String,
+    pub state: ChatStreamState,
+    pub model: String,
+    pub bytes_received: u64,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatStreamEvent {
+    pub stream_id: String,
+    pub event_type: String,
+    pub data: Option<String>,
+    pub state: ChatStreamState,
+    pub error: Option<String>,
+}

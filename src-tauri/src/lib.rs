@@ -3,6 +3,9 @@ mod core;
 mod services;
 mod state;
 
+use commands::chat::{
+    cancel_chat_stream, get_chat_stream_status, get_chat_stream_statuses, start_chat_stream,
+};
 use commands::downloader::{
     cancel_download, get_download_status, get_download_statuses, start_download,
 };
@@ -14,6 +17,7 @@ use commands::process::{
     clear_llama_server_logs, get_llama_server_logs, get_llama_server_status, start_llama_server,
     stop_llama_server,
 };
+use services::chat::ChatService;
 use services::downloader::DownloaderService;
 use services::persistence::PersistenceService;
 use services::process_manager::ProcessManager;
@@ -38,8 +42,9 @@ pub fn run() {
             service.ensure_data_dir().map_err(|e| e.to_string())?;
             let process_manager = ProcessManager::new(2_000);
             let downloader = DownloaderService::new();
+            let chat = ChatService::new();
 
-            app.manage(AppState::new(service, process_manager, downloader));
+            app.manage(AppState::new(service, process_manager, downloader, chat));
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("LlamaCppDesk");
@@ -65,7 +70,11 @@ pub fn run() {
             start_download,
             cancel_download,
             get_download_status,
-            get_download_statuses
+            get_download_statuses,
+            start_chat_stream,
+            cancel_chat_stream,
+            get_chat_stream_status,
+            get_chat_stream_statuses
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Tauri app");
