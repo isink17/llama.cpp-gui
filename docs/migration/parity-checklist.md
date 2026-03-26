@@ -54,4 +54,4 @@ Status key:
 
 - Keep this file updated per migration PR.
 - Link issue IDs near completed items when useful.
-- Latest implemented scope includes presets/history UI and a typed Tauri API client, but parity is still in progress.
+- Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, and smoke scripts; parity is still in progress.

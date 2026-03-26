@@ -43,7 +43,8 @@ Branch: `feature/migration/1`
 - Baseline Tauri shell and frontend bridge are in place.
 - Rust persistence, process management, downloader, and chat streaming services are implemented at baseline level.
 - UI wiring exists for settings, presets/history, `llama-server`, downloads, logs, and chat streaming, with a typed Tauri API client in place.
-- Remaining work is parity validation, platform coverage, and packaging/release flow.
+- Hardening now includes `migration-ci` coverage and smoke scripts for baseline validation.
+- Remaining work is parity validation, broader platform coverage, and packaging/release flow.
 
 ## Local Development
 
