@@ -229,6 +229,32 @@ button:active {
   transform: translateY(1px);
 }
 
+button:disabled,
+button:disabled:hover,
+button:disabled:active {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+  box-shadow: none;
+  filter: saturate(0.7);
+}
+
+button:disabled {
+  background: #334155;
+}
+
+button.secondary:disabled,
+button.secondary:disabled:hover {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+button.danger:disabled,
+button.danger:disabled:hover {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
 button.secondary {
   background: #1e293b;
 }

@@ -30,7 +30,7 @@ import {
   type Preset,
   type Settings,
 } from './lib/tauri/api';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const LOG_LIMIT = 200;
 const REFRESH_INTERVAL_MS = 4000;
@@ -84,7 +84,6 @@ function App() {
   });
   const [processHealth, setProcessHealth] =
     useState<LlamaServerHealthStatus | null>(null);
-  const [processHealthBusy, setProcessHealthBusy] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
 
   const [downloadUrl, setDownloadUrl] = useState('');
@@ -110,44 +109,85 @@ function App() {
   const [chatStatuses, setChatStatuses] = useState<ChatStreamStatus[]>([]);
 
   const [message, setMessage] = useState('');
+  const [busyActions, setBusyActions] = useState<Record<string, boolean>>({});
+  const busyActionLocks = useRef(new Set<string>());
 
   const activeStream = useMemo(
     () => chatStatuses.find((item) => item.state === 'streaming'),
     [chatStatuses],
   );
 
-  const refreshAll = useCallback(async () => {
-    try {
-      const [
-        loadedSettings,
-        loadedProcess,
-        loadedDownloads,
-        loadedStreams,
-        loadedLogs,
-        loadedPresets,
-        loadedHistory,
-      ] = await Promise.all([
-        getSettings(),
-        getLlamaServerStatus(),
-        getDownloadStatuses(),
-        getChatStreamStatuses(),
-        getLlamaServerLogs({ limit: LOG_LIMIT }),
-        getPresets(),
-        getHistory(),
-      ]);
-      setSettings(loadedSettings);
-      setProcessStatus(loadedProcess);
-      setDownloads(loadedDownloads);
-      setChatStatuses(loadedStreams);
-      setLlamaLogs(loadedLogs);
-      setPresets(loadedPresets);
-      setHistoryEntries(loadedHistory);
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setLastRefreshAt(new Date().toISOString());
-    }
+  const isBusy = useCallback(
+    (actionKey: string) => busyActions[actionKey] === true,
+    [busyActions],
+  );
+
+  const setActionBusy = useCallback((actionKey: string, value: boolean) => {
+    setBusyActions((prev) => {
+      if (prev[actionKey] === value) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [actionKey]: value,
+      };
+    });
   }, []);
+
+  const withBusyAction = useCallback(
+    async (actionKey: string, task: () => Promise<void>): Promise<void> => {
+      if (busyActionLocks.current.has(actionKey)) {
+        return;
+      }
+
+      busyActionLocks.current.add(actionKey);
+      setActionBusy(actionKey, true);
+
+      try {
+        await task();
+      } finally {
+        busyActionLocks.current.delete(actionKey);
+        setActionBusy(actionKey, false);
+      }
+    },
+    [setActionBusy],
+  );
+
+  const refreshAll = useCallback(async () => {
+    await withBusyAction('refresh', async () => {
+      try {
+        const [
+          loadedSettings,
+          loadedProcess,
+          loadedDownloads,
+          loadedStreams,
+          loadedLogs,
+          loadedPresets,
+          loadedHistory,
+        ] = await Promise.all([
+          getSettings(),
+          getLlamaServerStatus(),
+          getDownloadStatuses(),
+          getChatStreamStatuses(),
+          getLlamaServerLogs({ limit: LOG_LIMIT }),
+          getPresets(),
+          getHistory(),
+        ]);
+        setSettings(loadedSettings);
+        setProcessStatus(loadedProcess);
+        setDownloads(loadedDownloads);
+        setChatStatuses(loadedStreams);
+        setLlamaLogs(loadedLogs);
+        setPresets(loadedPresets);
+        setHistoryEntries(loadedHistory);
+      } catch (error) {
+        setMessage(String(error));
+      } finally {
+        setLastRefreshAt(new Date().toISOString());
+      }
+    });
+  }, [withBusyAction]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -175,12 +215,14 @@ function App() {
   }, [refreshAll]);
 
   const saveSettings = async () => {
-    try {
-      await saveSettingsCommand(settings);
-      setMessage('Settings saved.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('saveSettings', async () => {
+      try {
+        await saveSettingsCommand(settings);
+        setMessage('Settings saved.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const resetPresetDraft = () => {
@@ -197,187 +239,208 @@ function App() {
   };
 
   const savePreset = async () => {
-    try {
-      const trimmedName = presetDraft.name.trim();
-      if (!trimmedName) {
-        setMessage('Preset name is required.');
-        return;
+    await withBusyAction('savePreset', async () => {
+      try {
+        const trimmedName = presetDraft.name.trim();
+        if (!trimmedName) {
+          setMessage('Preset name is required.');
+          return;
+        }
+
+        const payload: Preset = {
+          id: presetDraft.id.trim() || createId('preset'),
+          name: trimmedName,
+          systemPrompt: presetDraft.systemPrompt,
+          createdAt: presetDraft.createdAt.trim() || new Date().toISOString(),
+        };
+
+        const next = await savePresetCommand({
+          preset: payload,
+        });
+        setPresets(next);
+        setPresetDraft(payload);
+        setMessage(`Preset '${payload.name}' saved.`);
+      } catch (error) {
+        setMessage(String(error));
       }
-
-      const payload: Preset = {
-        id: presetDraft.id.trim() || createId('preset'),
-        name: trimmedName,
-        systemPrompt: presetDraft.systemPrompt,
-        createdAt: presetDraft.createdAt.trim() || new Date().toISOString(),
-      };
-
-      const next = await savePresetCommand({
-        preset: payload,
-      });
-      setPresets(next);
-      setPresetDraft(payload);
-      setMessage(`Preset '${payload.name}' saved.`);
-    } catch (error) {
-      setMessage(String(error));
-    }
+    });
   };
 
   const deletePreset = async (presetId: string) => {
-    try {
-      const next = await deletePresetCommand({
-        presetId,
-      });
-      setPresets(next);
-      if (presetDraft.id === presetId) {
-        resetPresetDraft();
+    await withBusyAction(`deletePreset:${presetId}`, async () => {
+      try {
+        const next = await deletePresetCommand({
+          presetId,
+        });
+        setPresets(next);
+        if (presetDraft.id === presetId) {
+          resetPresetDraft();
+        }
+        setMessage('Preset deleted.');
+      } catch (error) {
+        setMessage(String(error));
       }
-      setMessage('Preset deleted.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    });
   };
 
   const appendHistoryEntry = async () => {
-    try {
-      const content = historyContent.trim();
-      if (!content) {
-        setMessage('History content is required.');
-        return;
-      }
+    await withBusyAction('appendHistory', async () => {
+      try {
+        const content = historyContent.trim();
+        if (!content) {
+          setMessage('History content is required.');
+          return;
+        }
 
-      const entry: HistoryEntry = {
-        id: createId('history'),
-        role: historyRole,
-        content,
-        timestamp: new Date().toISOString(),
-      };
-      const next = await appendHistoryCommand({ entry });
-      setHistoryEntries(next);
-      setHistoryContent('');
-      setMessage('History entry added.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+        const entry: HistoryEntry = {
+          id: createId('history'),
+          role: historyRole,
+          content,
+          timestamp: new Date().toISOString(),
+        };
+        const next = await appendHistoryCommand({ entry });
+        setHistoryEntries(next);
+        setHistoryContent('');
+        setMessage('History entry added.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const clearHistory = async () => {
-    try {
-      await clearHistoryCommand();
-      setHistoryEntries([]);
-      setMessage('History cleared.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('clearHistory', async () => {
+      try {
+        await clearHistoryCommand();
+        setHistoryEntries([]);
+        setMessage('History cleared.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const startProcess = async () => {
-    try {
-      const args = processArgs
-        .split(' ')
-        .map((item) => item.trim())
-        .filter(Boolean);
-      const status = await startLlamaServerCommand({
-        executablePath: processPath,
-        args,
-      });
-      setProcessStatus(status);
-      setProcessHealth(null);
-      setMessage('llama-server started.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('startProcess', async () => {
+      try {
+        const args = processArgs
+          .split(' ')
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const status = await startLlamaServerCommand({
+          executablePath: processPath,
+          args,
+        });
+        setProcessStatus(status);
+        setProcessHealth(null);
+        setMessage('llama-server started.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const stopProcess = async () => {
-    try {
-      const status = await stopLlamaServerCommand();
-      setProcessStatus(status);
-      setProcessHealth(null);
-      setMessage('llama-server stopped.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('stopProcess', async () => {
+      try {
+        const status = await stopLlamaServerCommand();
+        setProcessStatus(status);
+        setProcessHealth(null);
+        setMessage('llama-server stopped.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const startDownload = async () => {
-    try {
-      await startDownloadCommand({
-        sourceUrl: downloadUrl,
-        destinationPath: downloadPath,
-      });
-      const next = await getDownloadStatuses();
-      setDownloads(next);
-      setMessage('Download started.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('startDownload', async () => {
+      try {
+        await startDownloadCommand({
+          sourceUrl: downloadUrl,
+          destinationPath: downloadPath,
+        });
+        const next = await getDownloadStatuses();
+        setDownloads(next);
+        setMessage('Download started.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const cancelDownload = async (downloadId: string) => {
-    try {
-      await cancelDownloadCommand({ downloadId });
-      const next = await getDownloadStatuses();
-      setDownloads(next);
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction(`cancelDownload:${downloadId}`, async () => {
+      try {
+        await cancelDownloadCommand({ downloadId });
+        const next = await getDownloadStatuses();
+        setDownloads(next);
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const startChat = async () => {
-    try {
-      setChatLog([]);
-      await startChatStreamCommand({
-        request: {
-          serverUrl: settings.serverUrl,
-          model: chatModel,
-          messages: [{ role: 'user', content: chatPrompt }],
-          maxTokens: settings.maxTokens,
-          temperature: settings.temperature,
-        },
-      });
-      const next = await getChatStreamStatuses();
-      setChatStatuses(next);
-      setMessage('Chat stream started.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('startChat', async () => {
+      try {
+        setChatLog([]);
+        await startChatStreamCommand({
+          request: {
+            serverUrl: settings.serverUrl,
+            model: chatModel,
+            messages: [{ role: 'user', content: chatPrompt }],
+            maxTokens: settings.maxTokens,
+            temperature: settings.temperature,
+          },
+        });
+        const next = await getChatStreamStatuses();
+        setChatStatuses(next);
+        setMessage('Chat stream started.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const cancelChat = async () => {
     if (!activeStream) return;
-    try {
-      await cancelChatStreamCommand({
-        streamId: activeStream.streamId,
-      });
-      const next = await getChatStreamStatuses();
-      setChatStatuses(next);
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('cancelChat', async () => {
+      try {
+        await cancelChatStreamCommand({
+          streamId: activeStream.streamId,
+        });
+        const next = await getChatStreamStatuses();
+        setChatStatuses(next);
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const clearLogs = async () => {
-    try {
-      await clearLlamaServerLogs();
-      setLlamaLogs([]);
-      setMessage('llama-server logs cleared.');
-    } catch (error) {
-      setMessage(String(error));
-    }
+    await withBusyAction('clearLogs', async () => {
+      try {
+        await clearLlamaServerLogs();
+        setLlamaLogs([]);
+        setMessage('llama-server logs cleared.');
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const checkProcessHealth = async () => {
-    setProcessHealthBusy(true);
-    try {
-      const health = await getLlamaServerHealth({
-        url: `${settings.serverUrl.replace(/\/$/, '')}/health`,
-      });
-      setProcessHealth(health);
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setProcessHealthBusy(false);
-    }
+    await withBusyAction('checkHealth', async () => {
+      try {
+        const health = await getLlamaServerHealth({
+          url: `${settings.serverUrl.replace(/\/$/, '')}/health`,
+        });
+        setProcessHealth(health);
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
   };
 
   const processHealthLabel = processHealth
@@ -411,9 +474,24 @@ function App() {
     ? 'info'
     : chatStatuses.some((item) => item.state === 'failed')
       ? 'danger'
-      : chatStatuses.some((item) => item.state === 'completed')
+        : chatStatuses.some((item) => item.state === 'completed')
         ? 'success'
         : 'neutral';
+  const isRefreshing = isBusy('refresh');
+  const isSavingSettings = isBusy('saveSettings');
+  const isCheckingHealth = isBusy('checkHealth');
+  const isProcessTransitionBusy =
+    isBusy('startProcess') || isBusy('stopProcess');
+  const isSavingPreset = isBusy('savePreset');
+  const isAppendingHistory = isBusy('appendHistory');
+  const isClearingHistory = isBusy('clearHistory');
+  const isStartingDownload = isBusy('startDownload');
+  const isStartingChat = isBusy('startChat');
+  const isCancellingChat = isBusy('cancelChat');
+  const isClearingLogs = isBusy('clearLogs');
+  const isDeletingPreset = (presetId: string) => isBusy(`deletePreset:${presetId}`);
+  const isCancellingDownload = (downloadId: string) =>
+    isBusy(`cancelDownload:${downloadId}`);
 
   return (
     <main className="app-shell">
@@ -424,11 +502,17 @@ function App() {
           <div className="header-meta">
             <span className="hint">
               Last refresh:{' '}
-              {lastRefreshAt ? formatTimestamp(lastRefreshAt) : 'Waiting...'}
+              {isRefreshing
+                ? 'Refreshing...'
+                : lastRefreshAt
+                  ? formatTimestamp(lastRefreshAt)
+                  : 'Waiting...'}
             </span>
           </div>
         </div>
-        <button onClick={() => void refreshAll()}>Refresh</button>
+        <button onClick={() => void refreshAll()} disabled={isRefreshing}>
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
       </header>
 
       <section className="grid">
@@ -470,7 +554,9 @@ function App() {
               }
             />
           </label>
-          <button onClick={() => void saveSettings()}>Save settings</button>
+          <button onClick={() => void saveSettings()} disabled={isSavingSettings}>
+            {isSavingSettings ? 'Saving...' : 'Save settings'}
+          </button>
         </article>
 
         <article className="card">
@@ -487,9 +573,9 @@ function App() {
               <button
                 className="secondary"
                 onClick={() => void checkProcessHealth()}
-                disabled={processHealthBusy}
+                disabled={isCheckingHealth}
               >
-                {processHealthBusy ? 'Checking...' : 'Check health'}
+                {isCheckingHealth ? 'Checking...' : 'Check health'}
               </button>
             </div>
             <div className="health-summary">
@@ -522,13 +608,19 @@ function App() {
             />
           </label>
           <div className="row">
-            <button onClick={() => void startProcess()}>Start</button>
-            <button onClick={() => void stopProcess()}>Stop</button>
+            <button onClick={() => void startProcess()} disabled={isProcessTransitionBusy}>
+              {isBusy('startProcess') ? 'Starting...' : 'Start'}
+            </button>
+            <button onClick={() => void stopProcess()} disabled={isProcessTransitionBusy}>
+              {isBusy('stopProcess') ? 'Stopping...' : 'Stop'}
+            </button>
           </div>
           <div className="panel">
             <div className="panel-header">
               <h3>Logs</h3>
-              <button onClick={() => void clearLogs()}>Clear logs</button>
+              <button onClick={() => void clearLogs()} disabled={isClearingLogs}>
+                {isClearingLogs ? 'Clearing...' : 'Clear logs'}
+              </button>
             </div>
             <pre className="log-panel">
               {llamaLogs.length ? llamaLogs.join('\n') : 'No llama-server logs yet.'}
@@ -576,7 +668,9 @@ function App() {
             />
           </label>
           <div className="row">
-            <button onClick={() => void savePreset()}>Save preset</button>
+            <button onClick={() => void savePreset()} disabled={isSavingPreset}>
+              {isSavingPreset ? 'Saving...' : 'Save preset'}
+            </button>
             <button className="secondary" onClick={resetPresetDraft}>
               Clear form
             </button>
@@ -602,14 +696,16 @@ function App() {
                       <button
                         className="secondary"
                         onClick={() => editPreset(preset)}
+                        disabled={isDeletingPreset(preset.id)}
                       >
                         Edit
                       </button>
                       <button
                         className="danger"
                         onClick={() => void deletePreset(preset.id)}
+                        disabled={isDeletingPreset(preset.id)}
                       >
-                        Delete
+                        {isDeletingPreset(preset.id) ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </article>
@@ -624,8 +720,12 @@ function App() {
         <article className="card">
           <div className="panel-header">
             <h2>History</h2>
-            <button className="secondary" onClick={() => void clearHistory()}>
-              Clear history
+            <button
+              className="secondary"
+              onClick={() => void clearHistory()}
+              disabled={isClearingHistory}
+            >
+              {isClearingHistory ? 'Clearing...' : 'Clear history'}
             </button>
           </div>
           <div className="field-grid">
@@ -659,8 +759,8 @@ function App() {
             />
           </label>
           <div className="row">
-            <button onClick={() => void appendHistoryEntry()}>
-              Append history
+            <button onClick={() => void appendHistoryEntry()} disabled={isAppendingHistory}>
+              {isAppendingHistory ? 'Appending...' : 'Append history'}
             </button>
           </div>
           <div className="panel">
@@ -711,7 +811,9 @@ function App() {
               onChange={(e) => setDownloadPath(e.target.value)}
             />
           </label>
-          <button onClick={() => void startDownload()}>Start download</button>
+          <button onClick={() => void startDownload()} disabled={isStartingDownload}>
+            {isStartingDownload ? 'Starting...' : 'Start download'}
+          </button>
           <ul>
             {downloads.map((item) => (
               <li key={item.downloadId}>
@@ -735,8 +837,13 @@ function App() {
                     : 'Progress unavailable'}
                 </div>
                 <div className="row">
-                  <button onClick={() => void cancelDownload(item.downloadId)}>
-                    Cancel
+                  <button
+                    onClick={() => void cancelDownload(item.downloadId)}
+                    disabled={isCancellingDownload(item.downloadId)}
+                  >
+                    {isCancellingDownload(item.downloadId)
+                      ? 'Cancelling...'
+                      : 'Cancel'}
                   </button>
                 </div>
               </li>
@@ -768,8 +875,15 @@ function App() {
             />
           </label>
           <div className="row">
-            <button onClick={() => void startChat()}>Start stream</button>
-            <button onClick={() => void cancelChat()}>Cancel stream</button>
+            <button onClick={() => void startChat()} disabled={isStartingChat}>
+              {isStartingChat ? 'Starting...' : 'Start stream'}
+            </button>
+            <button
+              onClick={() => void cancelChat()}
+              disabled={!activeStream || isCancellingChat}
+            >
+              {isCancellingChat ? 'Cancelling...' : 'Cancel stream'}
+            </button>
           </div>
           <div className="panel">
             <div className="panel-header">
