@@ -274,7 +274,10 @@ mod tests {
             panic!("poison the downloader mutex");
         });
 
-        let err = lock_downloader(downloader.as_ref()).unwrap_err();
+        let err = match lock_downloader(downloader.as_ref()) {
+            Ok(_) => panic!("expected poisoned downloader mutex lock to fail"),
+            Err(err) => err,
+        };
         assert!(err.contains("poisoned"));
     }
 }

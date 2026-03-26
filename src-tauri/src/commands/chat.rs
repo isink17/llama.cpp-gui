@@ -228,7 +228,10 @@ mod tests {
             panic!("poison the chat mutex");
         });
 
-        let err = lock_chat(chat.as_ref()).unwrap_err();
+        let err = match lock_chat(chat.as_ref()) {
+            Ok(_) => panic!("expected poisoned chat mutex lock to fail"),
+            Err(err) => err,
+        };
         assert!(err.contains("poisoned"));
     }
 }
