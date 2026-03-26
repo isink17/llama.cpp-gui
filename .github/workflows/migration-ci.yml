@@ -109,13 +109,47 @@ jobs:
 
       - name: Run smoke checks (Unix)
         if: runner.os != 'Windows'
+        id: smoke_unix
         shell: bash
-        run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check 2>&1 | tee "smoke-checks-${{ matrix.os }}.log"
+
+      - name: Upload smoke diagnostics (Unix)
+        if: runner.os != 'Windows' && steps.smoke_unix.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-checks-diagnostics-${{ matrix.os }}
+          path: smoke-checks-${{ matrix.os }}.log
+          if-no-files-found: error
+
+      - name: Fail smoke checks (Unix)
+        if: runner.os != 'Windows' && steps.smoke_unix.outcome == 'failure'
+        shell: bash
+        run: exit 1
 
       - name: Run smoke checks (Windows)
         if: runner.os == 'Windows'
+        id: smoke_windows
         shell: pwsh
-        run: ./tests/smoke/Invoke-SmokeChecks.ps1 -SkipPrereqCheck
+        continue-on-error: true
+        run: |
+          ./tests/smoke/Invoke-SmokeChecks.ps1 -SkipPrereqCheck 2>&1 | Tee-Object -FilePath "smoke-checks-${{ matrix.os }}.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload smoke diagnostics (Windows)
+        if: runner.os == 'Windows' && steps.smoke_windows.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-checks-diagnostics-${{ matrix.os }}
+          path: smoke-checks-${{ matrix.os }}.log
+          if-no-files-found: error
+
+      - name: Fail smoke checks (Windows)
+        if: runner.os == 'Windows' && steps.smoke_windows.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
 
       - name: Build UI
         working-directory: ui
