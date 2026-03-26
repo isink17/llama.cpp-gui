@@ -10,6 +10,44 @@ permissions:
   contents: write
 
 jobs:
+  validate-migration:
+    name: Validate migration UI/Tauri path
+    runs-on: ubuntu-24.04
+    # Best-effort checks should not block the existing tag release job.
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check Rust formatting
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Cargo check
+        working-directory: src-tauri
+        run: cargo check --locked
+
   build:
     name: Build and validate (${{ matrix.os }})
     strategy:
