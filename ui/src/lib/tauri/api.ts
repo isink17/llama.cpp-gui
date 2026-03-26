@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type Settings = {
   serverUrl: string;
@@ -87,13 +88,21 @@ export type SavePresetRequest = {
   preset: Preset;
 };
 
+export type SavePresetResponse = Preset[];
+
 export type DeletePresetRequest = {
   presetId: string;
 };
 
+export type DeletePresetResponse = Preset[];
+
 export type AppendHistoryRequest = {
   entry: HistoryEntry;
 };
+
+export type AppendHistoryResponse = HistoryEntry[];
+
+export type ClearHistoryResponse = void;
 
 export type StartLlamaServerRequest = {
   executablePath: string;
@@ -133,17 +142,26 @@ export const saveSettings = (settings: Settings) =>
 export const getPresets = () => invoke<Preset[]>('get_presets');
 
 export const savePreset = (request: SavePresetRequest) =>
-  invoke<Preset[]>('save_preset', request);
+  invoke<SavePresetResponse>('save_preset', request);
 
 export const deletePreset = (request: DeletePresetRequest) =>
-  invoke<Preset[]>('delete_preset', request);
+  invoke<DeletePresetResponse>('delete_preset', request);
 
 export const getHistory = () => invoke<HistoryEntry[]>('get_history');
 
 export const appendHistory = (request: AppendHistoryRequest) =>
-  invoke<HistoryEntry[]>('append_history', request);
+  invoke<AppendHistoryResponse>('append_history', request);
 
-export const clearHistory = () => invoke<void>('clear_history');
+export const clearHistory = () => invoke<ClearHistoryResponse>('clear_history');
+
+export const subscribeToChatStreamEvent = (
+  handler: (event: ChatStreamEvent) => void,
+): Promise<UnlistenFn> =>
+  listen<ChatStreamEvent>('chat_stream_event', (event) => {
+    handler(event.payload);
+  });
+
+export const onChatStreamEvent = subscribeToChatStreamEvent;
 
 export const getLlamaServerStatus = () =>
   invoke<LlamaProcessStatus>('get_llama_server_status');

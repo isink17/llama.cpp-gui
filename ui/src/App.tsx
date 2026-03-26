@@ -16,6 +16,7 @@ import {
   getSettings,
   savePreset as savePresetCommand,
   saveSettings as saveSettingsCommand,
+  subscribeToChatStreamEvent,
   startChatStream as startChatStreamCommand,
   startDownload as startDownloadCommand,
   startLlamaServer as startLlamaServerCommand,
@@ -149,18 +150,18 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const stopListening = tauriBridge.listenToEvent(
-      'chat_stream_event',
-      (payload) => {
-        const event = payload as ChatStreamEvent;
-        if (event.eventType === 'chunk' && event.data) {
-          setChatLog((prev) => [...prev, event.data as string]);
-        }
-        if (event.eventType === 'error' && event.error) {
-          setMessage(event.error);
-        }
-      },
-    );
+    let unlisten: (() => void) | undefined;
+
+    void subscribeToChatStreamEvent((event: ChatStreamEvent) => {
+      if (event.eventType === 'chunk' && event.data) {
+        setChatLog((prev) => [...prev, event.data]);
+      }
+      if (event.eventType === 'error' && event.error) {
+        setMessage(event.error);
+      }
+    }).then((dispose) => {
+      unlisten = dispose;
+    });
 
     void refreshAll();
     const intervalId = window.setInterval(() => {
@@ -169,7 +170,7 @@ function App() {
 
     return () => {
       window.clearInterval(intervalId);
-      stopListening();
+      unlisten?.();
     };
   }, [refreshAll]);
 
