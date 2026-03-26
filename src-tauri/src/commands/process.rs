@@ -69,12 +69,45 @@ fn health_status_from_response(url: String, status: StatusCode) -> LlamaServerHe
     }
 }
 
-fn health_status_from_error(url: String, err: impl std::fmt::Display) -> LlamaServerHealthStatus {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HealthFailureKind {
+    Timeout,
+    Unavailable,
+    Other,
+}
+
+fn health_error_message(url: &str, kind: HealthFailureKind, err: impl std::fmt::Display) -> String {
+    match kind {
+        HealthFailureKind::Timeout => {
+            format!("timed out waiting for llama-server at {url}: {err}")
+        }
+        HealthFailureKind::Unavailable => {
+            format!("llama-server at {url} is unavailable: {err}")
+        }
+        HealthFailureKind::Other => format!("failed to reach llama-server at {url}: {err}"),
+    }
+}
+
+fn health_status_from_error(
+    url: String,
+    kind: HealthFailureKind,
+    err: impl std::fmt::Display,
+) -> LlamaServerHealthStatus {
     LlamaServerHealthStatus {
         healthy: false,
         status_code: None,
-        message: Some(format!("failed to reach llama-server: {err}")),
+        message: Some(health_error_message(&url, kind, err)),
         url,
+    }
+}
+
+fn classify_health_failure(err: &reqwest::Error) -> HealthFailureKind {
+    if err.is_timeout() {
+        HealthFailureKind::Timeout
+    } else if err.is_connect() {
+        HealthFailureKind::Unavailable
+    } else {
+        HealthFailureKind::Other
     }
 }
 
@@ -88,15 +121,18 @@ pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealt
 
     match client.get(&url).send() {
         Ok(response) => Ok(health_status_from_response(url, response.status())),
-        Err(err) => Ok(health_status_from_error(url, err)),
+        Err(err) => {
+            let kind = classify_health_failure(&err);
+            Ok(health_status_from_error(url, kind, err))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        health_status_from_error, health_status_from_response, normalize_health_url,
-        DEFAULT_HEALTH_URL,
+        classify_health_failure, health_error_message, health_status_from_error,
+        health_status_from_response, normalize_health_url, HealthFailureKind, DEFAULT_HEALTH_URL,
     };
     use reqwest::StatusCode;
 
@@ -149,6 +185,7 @@ mod tests {
     fn health_status_from_error_marks_unreachable_server_unhealthy() {
         let status = health_status_from_error(
             "http://127.0.0.1:8080/health".to_string(),
+            HealthFailureKind::Unavailable,
             "connection refused",
         );
 
@@ -156,8 +193,26 @@ mod tests {
         assert_eq!(status.status_code, None);
         assert_eq!(
             status.message.as_deref(),
-            Some("failed to reach llama-server: connection refused")
+            Some("llama-server at http://127.0.0.1:8080/health is unavailable: connection refused")
         );
         assert_eq!(status.url, "http://127.0.0.1:8080/health");
+    }
+
+    #[test]
+    fn health_error_message_distinguishes_timeout_and_unavailable_states() {
+        let url = "http://127.0.0.1:8080/health";
+
+        assert_eq!(
+            health_error_message(url, HealthFailureKind::Timeout, "deadline exceeded"),
+            "timed out waiting for llama-server at http://127.0.0.1:8080/health: deadline exceeded"
+        );
+        assert_eq!(
+            health_error_message(url, HealthFailureKind::Unavailable, "connection refused"),
+            "llama-server at http://127.0.0.1:8080/health is unavailable: connection refused"
+        );
+        assert_eq!(
+            health_error_message(url, HealthFailureKind::Other, "tls handshake failed"),
+            "failed to reach llama-server at http://127.0.0.1:8080/health: tls handshake failed"
+        );
     }
 }
