@@ -76,3 +76,5 @@ Note: if `cargo check` fails with `LNK1104 msvcrt.lib`, your local MSVC toolchai
 - Migration runbook: `docs/migration/runbook.md`
 - Parity checklist: `docs/migration/parity-checklist.md`
 - Smoke checklist: `tests/smoke/smoke-checklist.md`
+- Migration CI workflow: `.github/workflows/migration-ci.yml`
+- Smoke scripts: `tests/smoke/Invoke-SmokeChecks.ps1`, `tests/smoke/Invoke-SmokeChecks.sh`
