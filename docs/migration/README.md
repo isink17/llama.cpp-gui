@@ -21,6 +21,21 @@ This folder tracks migration progress from the current WinUI app to the Tauri mu
 - `#<n7>` CI matrix + release artifacts on tag
 - `#<n8>` Parity checklist + migration docs
 
+## Current Wiring Snapshot
+
+As of this branch, the Tauri backend registers these command groups in `src-tauri/src/lib.rs`:
+
+- persistence/data: settings, presets, and history commands
+- process: `llama-server` start/stop/status/logs/health commands
+- downloader: start/cancel/status commands
+- chat: start/cancel/status commands
+
+Frontend wiring is still a baseline bridge in `ui/src/lib/tauri/index.ts` and `ui/src/App.tsx`:
+
+- `invokeCommand(...)` is used for command calls
+- `listenToEvent('chat_stream_event', ...)` handles chat stream chunks and errors
+- the app currently refreshes status data by polling the registered status commands
+
 ## Documents
 
 - `parity-checklist.md`: feature parity tracking between WinUI and Tauri targets

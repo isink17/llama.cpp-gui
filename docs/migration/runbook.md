@@ -33,6 +33,21 @@ This runbook defines the standard execution flow for each migration work item.
 2. Include `Closes #<issue-number>` in PR description.
 3. Complete the checklist from `.github/pull_request_template.md`.
 
+## Current Wiring Snapshot
+
+As of this branch, the Tauri backend already registers:
+
+- persistence/data commands for settings, presets, and history
+- process commands for `llama-server` start/stop/status/logs/health
+- downloader commands for start/cancel/status
+- chat commands for start/cancel/status
+
+The frontend baseline is wired through `ui/src/lib/tauri/index.ts` and `ui/src/App.tsx`:
+
+- command calls go through `invokeCommand(...)`
+- chat streaming listens to `chat_stream_event`
+- status panels are refreshed by polling the registered status commands
+
 ## 5. Merge and Track
 
 1. Merge PR after review and passing CI.
