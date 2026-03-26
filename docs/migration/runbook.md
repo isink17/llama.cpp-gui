@@ -26,10 +26,12 @@ This runbook defines the standard execution flow for each migration work item.
 3. If parity behavior changes, update `parity-checklist.md`.
 4. Use `[-]` for baseline-implemented items that were exercised locally; keep `[ ]` for gaps that are still unverified.
 5. Reserve `[x]` for end-to-end validation, not just code presence.
-6. Use the smoke scripts in `tests/smoke/` for the fast migration smoke pass:
+6. Run the smoke scripts in `tests/smoke/` before deeper backend validation:
    - `Invoke-SmokeChecks.ps1`
    - `Invoke-SmokeChecks.sh`
-7. The `migration-ci` workflow runs `tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check` before `cargo check`.
+7. The smoke pass runs `npm run build` in `ui/` first, then `cargo fmt --check --manifest-path src-tauri/Cargo.toml`.
+8. Use `--skip-prereq-check` only when the environment is already known to have `cargo` and `npm`, or in CI.
+9. The `migration-ci` workflow runs `tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check` before `cargo check`.
 
 ## 4. Open PR to Integration Branch
 

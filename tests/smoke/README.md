@@ -37,6 +37,15 @@ Optional: skip the prereq check when you already know the environment is ready.
 ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check
 ```
 
+## Execution Order
+
+The smoke pass is intentionally ordered to catch the cheapest regressions first:
+
+1. `npm run build` in `ui/`
+2. `cargo fmt --check --manifest-path src-tauri/Cargo.toml`
+
+Use `--skip-prereq-check` only when `cargo` and `npm` are already confirmed available, or inside CI after setup.
+
 ## What The Smoke Pass Covers
 
 - `npm run build` in `ui/`
