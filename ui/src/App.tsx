@@ -49,11 +49,13 @@ const formatStatusLabel = (value: string) =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
-const classifyFailureMessage = (message: string) => {
+type FailureKind = 'timeout' | 'unavailable' | 'failure';
+
+const classifyFailureMessage = (message: string): FailureKind => {
   const normalized = message.trim().toLowerCase();
 
   if (normalized.includes('timed out') || normalized.includes('timeout')) {
-    return 'Timeout';
+    return 'timeout';
   }
 
   if (
@@ -61,10 +63,42 @@ const classifyFailureMessage = (message: string) => {
     normalized.includes('connection refused') ||
     normalized.includes('failed to reach')
   ) {
-    return 'Unavailable';
+    return 'unavailable';
   }
 
-  return 'Failure';
+  return 'failure';
+};
+
+const getFailureLabel = (kind: FailureKind) => {
+  switch (kind) {
+    case 'timeout':
+      return 'Timeout';
+    case 'unavailable':
+      return 'Unavailable';
+    case 'failure':
+      return 'Failure';
+  }
+};
+
+const getFailureTone = (kind: FailureKind) => {
+  switch (kind) {
+    case 'timeout':
+      return 'info';
+    case 'unavailable':
+    case 'failure':
+      return 'danger';
+  }
+};
+
+const getFailureDetailClass = (kind: FailureKind) => {
+  switch (kind) {
+    case 'timeout':
+      return 'timeout';
+    case 'unavailable':
+      return 'unavailable';
+    case 'failure':
+      return 'failure';
+  }
 };
 
 const getToneForState = (value: string) => {
@@ -505,15 +539,28 @@ function App() {
     ? 'info'
     : chatStatuses.some((item) => item.state === 'failed')
       ? 'danger'
-        : chatStatuses.some((item) => item.state === 'completed')
+      : chatStatuses.some((item) => item.state === 'completed')
         ? 'success'
         : 'neutral';
   const refreshStatusLabel = refreshIssue ? 'Refresh failed' : 'Sync live';
-  const refreshStatusTone = refreshIssue ? 'danger' : 'success';
+  const refreshStatusKind = refreshIssue
+    ? classifyFailureMessage(refreshIssue)
+    : null;
+  const refreshStatusTone = refreshStatusKind
+    ? getFailureTone(refreshStatusKind)
+    : 'success';
   const refreshStatusHint = refreshIssue
     ? refreshIssue
     : 'Auto-refresh polling is active.';
-  const processHealthDetailTone = processHealth?.healthy ? 'success' : 'danger';
+  const processHealthFailureKind =
+    processHealth && !processHealth.healthy && processHealth.message
+      ? classifyFailureMessage(processHealth.message)
+      : null;
+  const processHealthDetailTone = processHealth?.healthy
+    ? 'success'
+    : processHealthFailureKind
+      ? getFailureTone(processHealthFailureKind)
+      : 'danger';
   const isRefreshing = isBusy('refresh');
   const isSavingSettings = isBusy('saveSettings');
   const isCheckingHealth = isBusy('checkHealth');
@@ -605,9 +652,13 @@ function App() {
             <span className="hint">{refreshStatusHint}</span>
           </div>
           {refreshIssue ? (
-            <div className="status-detail">
-              <span className="status-badge danger">
-                {classifyFailureMessage(refreshIssue)}
+            <div
+              className={`status-detail ${getFailureDetailClass(
+                refreshStatusKind ?? 'failure',
+              )}`}
+            >
+              <span className={`status-badge ${refreshStatusTone}`}>
+                {getFailureLabel(refreshStatusKind ?? 'failure')}
               </span>
               <p className="status-detail-text">{refreshIssue}</p>
             </div>
@@ -641,11 +692,15 @@ function App() {
               </span>
             </div>
             {processHealth?.message ? (
-              <div className="status-detail">
+              <div
+                className={`status-detail ${getFailureDetailClass(
+                  processHealthFailureKind ?? 'failure',
+                )}`}
+              >
                 <span className={`status-badge ${processHealthDetailTone}`}>
                   {processHealth.healthy
                     ? 'Service responding'
-                    : classifyFailureMessage(processHealth.message)}
+                    : getFailureLabel(processHealthFailureKind ?? 'failure')}
                 </span>
                 <p className="status-detail-text">{processHealth.message}</p>
               </div>
@@ -882,9 +937,21 @@ function App() {
                   <strong>{item.downloadId}</strong>
                 </div>
                 {item.state === 'failed' || item.error ? (
-                  <div className="status-detail">
-                    <span className="status-badge danger">
-                      {item.error ? classifyFailureMessage(item.error) : 'Failure'}
+                  <div
+                    className={`status-detail ${getFailureDetailClass(
+                      item.error ? classifyFailureMessage(item.error) : 'failure',
+                    )}`}
+                  >
+                    <span
+                      className={`status-badge ${
+                        item.error
+                          ? getFailureTone(classifyFailureMessage(item.error))
+                          : 'danger'
+                      }`}
+                    >
+                      {item.error
+                        ? getFailureLabel(classifyFailureMessage(item.error))
+                        : 'Failure'}
                     </span>
                     <p className="status-detail-text">
                       {item.error ?? 'The download ended in a failed state.'}
@@ -974,10 +1041,22 @@ function App() {
                       Bytes received: {status.bytesReceived.toLocaleString()}
                     </div>
                     {status.error || status.state === 'failed' ? (
-                      <div className="status-detail">
-                        <span className="status-badge danger">
-                          {status.error
+                      <div
+                        className={`status-detail ${getFailureDetailClass(
+                          status.error
                             ? classifyFailureMessage(status.error)
+                            : 'failure',
+                        )}`}
+                      >
+                        <span
+                          className={`status-badge ${
+                            status.error
+                              ? getFailureTone(classifyFailureMessage(status.error))
+                              : 'danger'
+                          }`}
+                        >
+                          {status.error
+                            ? getFailureLabel(classifyFailureMessage(status.error))
                             : 'Failure'}
                         </span>
                         <p className="status-detail-text">
