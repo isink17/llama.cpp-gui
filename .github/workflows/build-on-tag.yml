@@ -31,18 +31,14 @@ jobs:
         working-directory: ui
         run: npm ci
 
-      - name: Build UI
-        working-directory: ui
-        run: npm run build
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
       - name: Check Rust formatting
-        working-directory: src-tauri
-        run: cargo fmt --check
+        shell: pwsh
+        run: ./tests/smoke/Invoke-SmokeChecks.ps1 -SkipPrereqCheck
 
       - name: Cargo check
         working-directory: src-tauri
