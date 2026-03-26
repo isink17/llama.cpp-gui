@@ -1,6 +1,7 @@
 use crate::core::models::{LlamaProcessStatus, LlamaServerHealthStatus};
 use crate::state::app_state::AppState;
 use reqwest::blocking::Client;
+use reqwest::StatusCode;
 use tauri::State;
 
 const DEFAULT_LOG_LIMIT: usize = 200;
@@ -52,6 +53,31 @@ fn normalize_health_url(url: Option<String>) -> String {
         .unwrap_or_else(|| DEFAULT_HEALTH_URL.to_string())
 }
 
+fn health_status_from_response(url: String, status: StatusCode) -> LlamaServerHealthStatus {
+    let healthy = status.is_success();
+    let message = if healthy {
+        Some("llama-server is healthy".to_string())
+    } else {
+        Some(format!("health check failed with HTTP status {status}"))
+    };
+
+    LlamaServerHealthStatus {
+        healthy,
+        status_code: Some(status.as_u16()),
+        message,
+        url,
+    }
+}
+
+fn health_status_from_error(url: String, err: impl std::fmt::Display) -> LlamaServerHealthStatus {
+    LlamaServerHealthStatus {
+        healthy: false,
+        status_code: None,
+        message: Some(format!("failed to reach llama-server: {err}")),
+        url,
+    }
+}
+
 #[tauri::command]
 pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealthStatus, String> {
     let url = normalize_health_url(url);
@@ -61,34 +87,18 @@ pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealt
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
 
     match client.get(&url).send() {
-        Ok(response) => {
-            let status = response.status();
-            let healthy = status.is_success();
-            let message = if healthy {
-                Some("llama-server is healthy".to_string())
-            } else {
-                Some(format!("health check failed with HTTP status {status}"))
-            };
-
-            Ok(LlamaServerHealthStatus {
-                healthy,
-                status_code: Some(status.as_u16()),
-                message,
-                url,
-            })
-        }
-        Err(err) => Ok(LlamaServerHealthStatus {
-            healthy: false,
-            status_code: None,
-            message: Some(format!("failed to reach llama-server: {err}")),
-            url,
-        }),
+        Ok(response) => Ok(health_status_from_response(url, response.status())),
+        Err(err) => Ok(health_status_from_error(url, err)),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_health_url, DEFAULT_HEALTH_URL};
+    use super::{
+        health_status_from_error, health_status_from_response, normalize_health_url,
+        DEFAULT_HEALTH_URL,
+    };
+    use reqwest::StatusCode;
 
     #[test]
     fn normalize_health_url_defaults_when_missing_or_blank() {
@@ -106,8 +116,48 @@ mod tests {
     #[test]
     fn normalize_health_url_trims_non_empty_input() {
         assert_eq!(
-            normalize_health_url(Some("  http://127.0.0.1:9000/health  ".to_string())),
-            "http://127.0.0.1:9000/health"
+            normalize_health_url(Some(
+                "\n\t  http://127.0.0.1:9000/health?foo=bar  \t".to_string()
+            )),
+            "http://127.0.0.1:9000/health?foo=bar"
         );
+    }
+
+    #[test]
+    fn health_status_from_response_maps_success_and_failure() {
+        let healthy =
+            health_status_from_response("http://127.0.0.1:9000/health".to_string(), StatusCode::OK);
+        assert!(healthy.healthy);
+        assert_eq!(healthy.status_code, Some(200));
+        assert_eq!(healthy.message.as_deref(), Some("llama-server is healthy"));
+        assert_eq!(healthy.url, "http://127.0.0.1:9000/health");
+
+        let unhealthy = health_status_from_response(
+            "http://127.0.0.1:9000/health".to_string(),
+            StatusCode::SERVICE_UNAVAILABLE,
+        );
+        assert!(!unhealthy.healthy);
+        assert_eq!(unhealthy.status_code, Some(503));
+        assert_eq!(
+            unhealthy.message.as_deref(),
+            Some("health check failed with HTTP status 503 Service Unavailable")
+        );
+        assert_eq!(unhealthy.url, "http://127.0.0.1:9000/health");
+    }
+
+    #[test]
+    fn health_status_from_error_marks_unreachable_server_unhealthy() {
+        let status = health_status_from_error(
+            "http://127.0.0.1:8080/health".to_string(),
+            "connection refused",
+        );
+
+        assert!(!status.healthy);
+        assert_eq!(status.status_code, None);
+        assert_eq!(
+            status.message.as_deref(),
+            Some("failed to reach llama-server: connection refused")
+        );
+        assert_eq!(status.url, "http://127.0.0.1:8080/health");
     }
 }

@@ -113,6 +113,24 @@ impl ChatStreamState {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{ChatStreamState, DownloadState};
+
+    #[test]
+    fn terminal_state_helpers_distinguish_active_and_finished_states() {
+        assert!(!DownloadState::Downloading.is_terminal());
+        assert!(DownloadState::Completed.is_terminal());
+        assert!(DownloadState::Cancelled.is_terminal());
+        assert!(DownloadState::Failed.is_terminal());
+
+        assert!(!ChatStreamState::Streaming.is_terminal());
+        assert!(ChatStreamState::Completed.is_terminal());
+        assert!(ChatStreamState::Cancelled.is_terminal());
+        assert!(ChatStreamState::Failed.is_terminal());
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatStreamStatus {
