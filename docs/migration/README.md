@@ -24,8 +24,9 @@ This folder tracks migration progress from the current WinUI app to the Tauri mu
 ## Progress Notes
 
 - Migration CI now includes smoke logging plus a cross-platform validation matrix for Linux, macOS, and Windows.
+- Migration CI uploads per-OS smoke diagnostics artifacts when smoke checks fail in the matrix job.
 - Tag releases now derive a stable artifact name from `LlamaCppDesk-win-x64-<tag-suffix>` and reuse the same derived paths through package/upload/release steps.
-- Smoke scripts now support an optional cargo-check path, and migration CI runs the smoke pass on Unix and Windows before deeper validation.
+- Smoke scripts now support an optional cargo-check path. Migration CI runs smoke checks on Unix and Windows before deeper validation, and tag validation uses the smoke script with cargo-check enabled.
 - Health and refresh failure handling now distinguishes timeout, unavailable, and other error cases more clearly in the backend and UI.
 
 ## Current Wiring Snapshot

@@ -68,6 +68,8 @@ Use `--skip-prereq-check` only when `cargo` and `npm` are already confirmed avai
 - The scripts are non-destructive.
 - They are intended to stay fast enough for local pre-PR validation.
 - Use the manual checklist for behavioral coverage that cannot be fully asserted by the smoke scripts alone.
+- `migration-ci` runs the smoke pass cross-platform and uploads per-OS smoke diagnostics artifacts on failures.
+- `build-on-tag` validation uses the optional cargo-check path.
 
 ## Manual Checklist
 

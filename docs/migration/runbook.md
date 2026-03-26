@@ -35,6 +35,8 @@ This runbook defines the standard execution flow for each migration work item.
    - PowerShell: `Invoke-SmokeChecks.ps1 -SkipPrereqCheck -IncludeCargoCheck`
    - Bash: `Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check`
 10. The `migration-ci` workflow runs smoke checks on Linux and macOS with `Invoke-SmokeChecks.sh --skip-prereq-check`, and on Windows with `Invoke-SmokeChecks.ps1 -SkipPrereqCheck`, before the build and validation steps continue.
+11. On smoke failure in the matrix job, `migration-ci` uploads per-OS smoke diagnostics artifacts before failing the job.
+12. The `build-on-tag` validation job uses `Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check` for the stricter pre-release path.
 
 ## 4. Open PR to Integration Branch
 
