@@ -45,3 +45,4 @@ Desktop.ini
 codegraph.sqlite
 codegraph.sqlite-shm
 codegraph.sqlite-wal
+.dotnet-home/
