@@ -39,10 +39,10 @@ Status key:
 
 ## UX Parity
 
-- [-] Settings screen baseline is wired; WinUI parity still pending
-- [-] Chat screen baseline is wired; WinUI parity still pending
+- [-] Settings screen baseline is wired through the typed Tauri API client; WinUI parity still pending
+- [-] Chat screen baseline is wired through the typed Tauri API client; WinUI parity still pending
 - [-] Downloader screen baseline is wired; WinUI parity still pending
-- [-] Presets management baseline is wired; WinUI parity still pending
+- [-] Presets and history management baselines are wired; WinUI parity still pending
 
 ## Packaging and Delivery
 
@@ -54,3 +54,4 @@ Status key:
 
 - Keep this file updated per migration PR.
 - Link issue IDs near completed items when useful.
+- Latest implemented scope includes presets/history UI and a typed Tauri API client, but parity is still in progress.
