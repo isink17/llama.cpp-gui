@@ -19,7 +19,7 @@ Status key:
 
 - [-] Start local `llama-server` with configured args
 - [-] Stop server process gracefully
-- [-] Process crash/failure is surfaced to UI
+- [-] Process crash/failure states are surfaced to UI, with clearer health messages for timeout/unavailable cases
 - [-] Health state is visible in UI
 - [-] Runtime logs are streamable/viewable in UI
 
@@ -35,7 +35,7 @@ Status key:
 - [-] Submit chat prompt to backend
 - [-] Stream tokens/chunks to UI
 - [-] Cancel active generation
-- [-] Handle timeout/server unavailable errors
+- [-] Handle timeout/server unavailable errors in backend and UI status surfaces
 
 ## UX Parity
 
@@ -46,7 +46,7 @@ Status key:
 
 ## Packaging and Delivery
 
-- [ ] CI builds artifacts on Windows/Linux/macOS
+- [-] CI validates the migration path on Windows/Linux/macOS
 - [ ] Artifact naming is stable and documented
 - [ ] Tag-trigger release publishing validated
 
@@ -54,4 +54,5 @@ Status key:
 
 - Keep this file updated per migration PR.
 - Link issue IDs near completed items when useful.
-- Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, and smoke scripts; parity is still in progress.
+- Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, cross-platform validation coverage, and smoke scripts; parity is still in progress.
+- Error-handling work now distinguishes timeout, unavailable, and other health failures in the backend and surfaces a clearer refresh failure state in the UI.

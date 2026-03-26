@@ -21,6 +21,11 @@ This folder tracks migration progress from the current WinUI app to the Tauri mu
 - `#<n7>` CI matrix + release artifacts on tag
 - `#<n8>` Parity checklist + migration docs
 
+## Progress Notes
+
+- Migration CI now includes smoke logging plus a cross-platform validation matrix for Linux, macOS, and Windows.
+- Health and refresh failure handling now distinguishes timeout, unavailable, and other error cases more clearly in the backend and UI.
+
 ## Current Wiring Snapshot
 
 As of this branch, the Tauri backend registers these command groups in `src-tauri/src/lib.rs`:
