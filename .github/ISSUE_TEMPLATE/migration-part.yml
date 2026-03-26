@@ -1,0 +1,69 @@
+name: Migration Part
+description: Track one scoped step of multiplatform migration
+title: "[Migration] <area>: <short title>"
+labels: ["migration"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Select the migration area for this issue.
+      options:
+        - backend
+        - frontend
+        - ci
+        - docs
+        - workflow
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Define what is in/out of scope.
+      placeholder: |
+        In scope:
+        - ...
+        Out of scope:
+        - ...
+    validations:
+      required: true
+
+  - type: input
+    id: branch
+    attributes:
+      label: Branch Name
+      description: Must match feature/migration/<issue-number>
+      placeholder: feature/migration/123
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link issues that block or are blocked by this issue.
+      placeholder: |
+        Blocks:
+        - #
+        Blocked by:
+        - #
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      placeholder: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      placeholder: |
+        Build/test checks:
+        Manual verification:
