@@ -113,6 +113,26 @@ impl ChatStreamState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatStreamStatus {
+    pub stream_id: String,
+    pub state: ChatStreamState,
+    pub model: String,
+    pub bytes_received: u64,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatStreamEvent {
+    pub stream_id: String,
+    pub event_type: String,
+    pub data: Option<String>,
+    pub state: ChatStreamState,
+    pub error: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -259,24 +279,4 @@ mod tests {
             })
         );
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatStreamStatus {
-    pub stream_id: String,
-    pub state: ChatStreamState,
-    pub model: String,
-    pub bytes_received: u64,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatStreamEvent {
-    pub stream_id: String,
-    pub event_type: String,
-    pub data: Option<String>,
-    pub state: ChatStreamState,
-    pub error: Option<String>,
 }
