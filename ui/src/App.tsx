@@ -49,6 +49,24 @@ const formatStatusLabel = (value: string) =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
+const classifyFailureMessage = (message: string) => {
+  const normalized = message.trim().toLowerCase();
+
+  if (normalized.includes('timed out') || normalized.includes('timeout')) {
+    return 'Timeout';
+  }
+
+  if (
+    normalized.includes('unavailable') ||
+    normalized.includes('connection refused') ||
+    normalized.includes('failed to reach')
+  ) {
+    return 'Unavailable';
+  }
+
+  return 'Failure';
+};
+
 const getToneForState = (value: string) => {
   switch (value.toLowerCase()) {
     case 'running':
@@ -495,6 +513,7 @@ function App() {
   const refreshStatusHint = refreshIssue
     ? refreshIssue
     : 'Auto-refresh polling is active.';
+  const processHealthDetailTone = processHealth?.healthy ? 'success' : 'danger';
   const isRefreshing = isBusy('refresh');
   const isSavingSettings = isBusy('saveSettings');
   const isCheckingHealth = isBusy('checkHealth');
@@ -585,6 +604,14 @@ function App() {
             </span>
             <span className="hint">{refreshStatusHint}</span>
           </div>
+          {refreshIssue ? (
+            <div className="status-detail">
+              <span className="status-badge danger">
+                {classifyFailureMessage(refreshIssue)}
+              </span>
+              <p className="status-detail-text">{refreshIssue}</p>
+            </div>
+          ) : null}
           <div className="status-summary">
             <span className={`status-badge ${processBadgeTone}`}>
               {processBadgeLabel}
@@ -610,11 +637,18 @@ function App() {
                 {processHealth?.statusCode !== undefined &&
                 processHealth?.statusCode !== null
                   ? `HTTP ${processHealth.statusCode}`
-                  : processHealth?.url ?? 'No health check run yet.'}
+                : processHealth?.url ?? 'No health check run yet.'}
               </span>
             </div>
             {processHealth?.message ? (
-              <p className="health-message">{processHealth.message}</p>
+              <div className="status-detail">
+                <span className={`status-badge ${processHealthDetailTone}`}>
+                  {processHealth.healthy
+                    ? 'Service responding'
+                    : classifyFailureMessage(processHealth.message)}
+                </span>
+                <p className="status-detail-text">{processHealth.message}</p>
+              </div>
             ) : null}
           </div>
           <label>
@@ -847,8 +881,15 @@ function App() {
                   </span>
                   <strong>{item.downloadId}</strong>
                 </div>
-                {item.state === 'failed' && item.error ? (
-                  <div className="hint">{item.error}</div>
+                {item.state === 'failed' || item.error ? (
+                  <div className="status-detail">
+                    <span className="status-badge danger">
+                      {item.error ? classifyFailureMessage(item.error) : 'Failure'}
+                    </span>
+                    <p className="status-detail-text">
+                      {item.error ?? 'The download ended in a failed state.'}
+                    </p>
+                  </div>
                 ) : null}
                 {item.sourceUrl ? <div className="hint">{item.sourceUrl}</div> : null}
                 {item.destinationPath ? (
@@ -932,7 +973,18 @@ function App() {
                     <div className="hint">
                       Bytes received: {status.bytesReceived.toLocaleString()}
                     </div>
-                    {status.error ? <p>{status.error}</p> : null}
+                    {status.error || status.state === 'failed' ? (
+                      <div className="status-detail">
+                        <span className="status-badge danger">
+                          {status.error
+                            ? classifyFailureMessage(status.error)
+                            : 'Failure'}
+                        </span>
+                        <p className="status-detail-text">
+                          {status.error ?? 'The stream ended in a failed state.'}
+                        </p>
+                      </div>
+                    ) : null}
                   </article>
                 ))
               ) : (
