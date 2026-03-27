@@ -4,11 +4,9 @@ import { type FailureView, getFailureView } from '../utils/failure';
 export type DownloaderCardProps = {
   downloads: DownloadStatus[];
   downloadUrl: string;
-  downloadPath: string;
   isStartingDownload: boolean;
   isCancellingDownload: (downloadId: string) => boolean;
   onDownloadUrlChange: (value: string) => void;
-  onDownloadPathChange: (value: string) => void;
   onStartDownload: () => void;
   onCancelDownload: (downloadId: string) => void;
   downloadSource: string;
@@ -78,11 +76,9 @@ const formatStatusLabel = (value: string) =>
 export function DownloaderCard({
   downloads,
   downloadUrl,
-  downloadPath,
   isStartingDownload,
   isCancellingDownload,
   onDownloadUrlChange,
-  onDownloadPathChange,
   onStartDownload,
   onCancelDownload,
   downloadSource,
@@ -196,10 +192,6 @@ export function DownloaderCard({
           onChange={(e) => onDownloadFileNameChange(e.target.value)}
           placeholder="Leave blank for suggested filename"
         />
-      </label>
-      <label>
-        Destination path
-        <input value={downloadPath} onChange={(e) => onDownloadPathChange(e.target.value)} />
       </label>
       <button onClick={() => void onStartDownload()} disabled={isStartingDownload}>
         {isStartingDownload ? 'Starting...' : 'Start download'}

@@ -89,7 +89,6 @@ function App() {
   >(null);
 
   const [downloadUrl, setDownloadUrl] = useState('');
-  const [downloadPath, setDownloadPath] = useState('');
   const [downloads, setDownloads] = useState<DownloadStatus[]>([]);
   const [llamaLogs, setLlamaLogs] = useState<string[]>([]);
 
@@ -305,7 +304,6 @@ function App() {
       cancelled = true;
       window.clearInterval(fastIntervalId);
       window.clearInterval(slowIntervalId);
-      busyActionLocks.current.clear();
       void listenPromise.then((dispose) => dispose());
     };
   }, [refreshAll, refreshDynamic, refreshStatic]);
@@ -479,22 +477,6 @@ function App() {
         setProcessStatus(status);
         setProcessHealth(null);
         setMessage('llama-server stopped.');
-      } catch (error) {
-        setMessage(String(error));
-      }
-    });
-  };
-
-  const startDownload = async () => {
-    await withBusyAction('startDownload', async () => {
-      try {
-        await startDownloadCommand({
-          sourceUrl: downloadUrl,
-          destinationPath: downloadPath,
-        });
-        const next = await getDownloadStatuses();
-        setDownloads(next);
-        setMessage('Download started.');
       } catch (error) {
         setMessage(String(error));
       }
@@ -819,10 +801,16 @@ function App() {
           }
         }
 
-        const destFolder = downloadPath || settings.downloadFolder;
-        const destPath = fileName
-          ? `${destFolder.replace(/[\\/]$/, '')}/${fileName}`
-          : downloadPath;
+        const destFolder = settings.downloadFolder;
+        if (!destFolder) {
+          setMessage('Download folder must be set in settings.');
+          return;
+        }
+        if (!fileName) {
+          setMessage('Could not determine filename for download.');
+          return;
+        }
+        const destPath = `${destFolder.replace(/[\\/]$/, '')}/${fileName}`;
 
         await startDownloadCommand({
           sourceUrl: resolvedUrl,
@@ -938,11 +926,9 @@ function App() {
         <DownloaderCard
           downloads={downloads}
           downloadUrl={downloadUrl}
-          downloadPath={downloadPath}
           isStartingDownload={isStartingDownload}
           isCancellingDownload={isCancellingDownload}
           onDownloadUrlChange={setDownloadUrl}
-          onDownloadPathChange={setDownloadPath}
           onStartDownload={() => void startDownloadWithResolve()}
           onCancelDownload={(downloadId) => void cancelDownload(downloadId)}
           downloadSource={downloadSource}

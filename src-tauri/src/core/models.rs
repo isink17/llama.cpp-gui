@@ -60,21 +60,11 @@ fn default_max_tokens() -> u32 {
     512
 }
 fn default_download_folder() -> String {
-    if let Ok(profile) = std::env::var("USERPROFILE") {
-        return std::path::PathBuf::from(profile)
-            .join("Downloads")
-            .join("LLMModels")
-            .to_string_lossy()
-            .into_owned();
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        return std::path::PathBuf::from(home)
-            .join("Downloads")
-            .join("LLMModels")
-            .to_string_lossy()
-            .into_owned();
-    }
-    "LLMModels".to_string()
+    dirs::download_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("Downloads"))
+        .join("LLMModels")
+        .to_string_lossy()
+        .into_owned()
 }
 
 impl Default for Settings {

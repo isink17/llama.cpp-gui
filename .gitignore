@@ -20,6 +20,9 @@ artifacts/
 *.temp
 *.cache
 
+# Claude Code local settings (contains user-specific paths)
+.claude/settings.local.json
+
 # OS files
 .DS_Store
 Thumbs.db
