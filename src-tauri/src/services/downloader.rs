@@ -62,6 +62,15 @@ impl DownloaderService {
         }
 
         let destination_path = PathBuf::from(&destination_path);
+
+        for component in destination_path.components() {
+            if matches!(component, std::path::Component::ParentDir) {
+                return Err(
+                    "destination_path must not contain '..' path traversal components".to_string(),
+                );
+            }
+        }
+
         let destination_path_str = destination_path.to_string_lossy().to_string();
         if destination_path.exists() {
             return Err(format!(
@@ -260,7 +269,7 @@ fn run_download_worker(
     };
 
     let mut downloaded_bytes: u64 = 0;
-    let mut buffer = [0u8; 16 * 1024];
+    let mut buffer = [0u8; 128 * 1024];
 
     loop {
         if cancel_requested.load(Ordering::SeqCst) {

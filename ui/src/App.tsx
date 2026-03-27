@@ -45,7 +45,12 @@ import { DownloaderCard } from './components/DownloaderCard';
 import { ChatCard } from './components/ChatCard';
 
 const LOG_LIMIT = 200;
-const REFRESH_INTERVAL_MS = 4000;
+/** Interval for frequently changing data: process status, downloads, chat, logs. */
+const FAST_REFRESH_MS = 4000;
+/** Interval for mostly-static data: settings, presets, history. */
+const SLOW_REFRESH_MS = 60000;
+const INITIAL_REFRESH_RETRIES = 2;
+const INITIAL_REFRESH_RETRY_DELAY_MS = 1500;
 const HISTORY_ROLES: HistoryEntry['role'][] = ['system', 'user', 'assistant'];
 const MAX_PROMPT_HISTORY = 40;
 
@@ -170,6 +175,51 @@ function App() {
     [setActionBusy],
   );
 
+  const safeErrorMessage = useCallback(
+    (error: unknown): string => {
+      let msg = String(error);
+      if (hfToken) {
+        msg = msg.replaceAll(hfToken, '***');
+      }
+      return msg;
+    },
+    [hfToken],
+  );
+
+  const refreshDynamic = useCallback(async () => {
+    await withBusyAction('refreshDynamic', async () => {
+      try {
+        const [loadedProcess, loadedDownloads, loadedStreams, loadedLogs] =
+          await Promise.all([
+            getLlamaServerStatus(),
+            getDownloadStatuses(),
+            getChatStreamStatuses(),
+            getLlamaServerLogs({ limit: LOG_LIMIT }),
+          ]);
+        setProcessStatus(loadedProcess);
+        setDownloads(loadedDownloads);
+        setChatStatuses(loadedStreams);
+        setLlamaLogs(loadedLogs);
+      } catch {
+        // dynamic refresh failures are transient; don't update UI state
+      }
+    });
+  }, [withBusyAction]);
+
+  const refreshStatic = useCallback(async () => {
+    await withBusyAction('refreshStatic', async () => {
+      try {
+        const [loadedSettings, loadedPresets, loadedHistory] =
+          await Promise.all([getSettings(), getPresets(), getHistory()]);
+        setSettings(loadedSettings);
+        setPresets(loadedPresets);
+        setHistoryEntries(loadedHistory);
+      } catch {
+        // static refresh failures are transient; don't update UI state
+      }
+    });
+  }, [withBusyAction]);
+
   const refreshAll = useCallback(async () => {
     await withBusyAction('refresh', async () => {
       try {
@@ -208,29 +258,57 @@ function App() {
   }, [withBusyAction]);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let cancelled = false;
 
-    void subscribeToChatStreamEvent((event: ChatStreamEvent) => {
-      if (event.eventType === 'chunk' && event.data) {
-        setChatLog((prev) => [...prev, event.data]);
-      }
-      if (event.eventType === 'error' && event.error) {
-        setMessage(event.error);
-      }
-    }).then((dispose) => {
-      unlisten = dispose;
-    });
+    const listenPromise = subscribeToChatStreamEvent(
+      (event: ChatStreamEvent) => {
+        if (event.eventType === 'chunk' && event.data) {
+          setChatLog((prev) => [...prev, event.data!]);
+        }
+        if (event.eventType === 'error' && event.error) {
+          setMessage(event.error);
+        }
+      },
+    );
 
-    void refreshAll();
-    const intervalId = window.setInterval(() => {
-      void refreshAll();
-    }, REFRESH_INTERVAL_MS);
+    const initialLoad = async () => {
+      for (let attempt = 0; attempt <= INITIAL_REFRESH_RETRIES; attempt++) {
+        if (cancelled) return;
+        try {
+          await refreshAll();
+          return;
+        } catch {
+          if (attempt < INITIAL_REFRESH_RETRIES) {
+            await new Promise((r) =>
+              setTimeout(r, INITIAL_REFRESH_RETRY_DELAY_MS),
+            );
+          }
+        }
+      }
+      if (!cancelled) {
+        setRefreshIssue('Initial load failed after retries');
+        setMessage('Failed to load data from backend.');
+      }
+    };
+
+    void initialLoad();
+
+    const fastIntervalId = window.setInterval(() => {
+      void refreshDynamic();
+    }, FAST_REFRESH_MS);
+
+    const slowIntervalId = window.setInterval(() => {
+      void refreshStatic();
+    }, SLOW_REFRESH_MS);
 
     return () => {
-      window.clearInterval(intervalId);
-      unlisten?.();
+      cancelled = true;
+      window.clearInterval(fastIntervalId);
+      window.clearInterval(slowIntervalId);
+      busyActionLocks.current.clear();
+      void listenPromise.then((dispose) => dispose());
     };
-  }, [refreshAll]);
+  }, [refreshAll, refreshDynamic, refreshStatic]);
 
   const saveSettings = async () => {
     await withBusyAction('saveSettings', async () => {
@@ -689,7 +767,7 @@ function App() {
         }
         setMessage(`Loaded ${files.length} file(s) from repository.`);
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -754,7 +832,7 @@ function App() {
         setDownloads(next);
         setMessage('Download started.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -788,7 +866,9 @@ function App() {
                 ? 'Refreshing...'
                 : lastSuccessfulRefreshAt
                   ? formatTimestamp(lastSuccessfulRefreshAt)
-                  : 'Waiting...'}
+                  : refreshIssue
+                    ? `Error: ${refreshIssue}`
+                    : 'Waiting...'}
             </span>
           </div>
         </div>
@@ -900,7 +980,7 @@ function App() {
         />
       </section>
 
-      <footer className="status-line">
+      <footer className="status-line" aria-live="polite">
         <span>Bridge: {tauriBridge.status}</span>
         <span>{message}</span>
       </footer>

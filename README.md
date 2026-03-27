@@ -1,16 +1,9 @@
 # LlamaCppDesk
 
-LlamaCppDesk is migrating from a Windows-only WinUI app to a Tauri-based cross-platform desktop app.
-
-This repository currently contains both codepaths:
-
-- WinUI app (existing baseline)
-- Tauri backend (`src-tauri/`)
-- Tauri frontend (`ui/`)
+LlamaCppDesk is a Tauri-based cross-platform desktop app for managing and chatting with local llama.cpp models.
 
 ## Project Structure
 
-- WinUI app: `App.xaml`, `Views/`, `Services/`, `Models/`, `Converters/`
 - Tauri backend: `src-tauri/`
 - Tauri frontend: `ui/`
 - Migration docs: `docs/migration/`
@@ -70,6 +63,16 @@ cargo check --manifest-path src-tauri/Cargo.toml
 cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
+## Data Directory
+
+The app stores user data (settings, presets, history, downloaded models) in Tauri's `app_data_dir()` under a `migration-data/` subdirectory.
+
+| OS      | Path                                                             |
+|---------|------------------------------------------------------------------|
+| Windows | `%APPDATA%\com.llamacppdesk\migration-data\`                     |
+| Linux   | `~/.local/share/com.llamacppdesk/migration-data/`                |
+| macOS   | `~/Library/Application Support/com.llamacppdesk/migration-data/` |
+
 ## Smoke Validation
 
 Use smoke scripts before opening/merging migration PRs:
@@ -100,8 +103,8 @@ Manual checklist: `tests/smoke/smoke-checklist.md`
   - Cross-platform validation matrix
   - Smoke checks and per-OS diagnostics artifacts on failure
 - Tag build workflow: `.github/workflows/build-on-tag.yml`
-  - Stable artifact naming
-  - Smoke validation path with cargo-check enabled
+  - Builds Tauri app via `cargo tauri build`
+  - Uploads artifacts and publishes GitHub release assets
 
 ## Contribution and Workflow
 
@@ -110,21 +113,12 @@ Manual checklist: `tests/smoke/smoke-checklist.md`
 - Migration runbook: `docs/migration/runbook.md`
 - Parity checklist: `docs/migration/parity-checklist.md`
 
-Branching model:
-
-- Integration branch: `feature/multiplatform_support`
-- Work branches: `feature/migration/<issue-number>`
-- Migration PRs target: `feature/multiplatform_support`
-- PR descriptions must include: `Closes #<issue-number>`
-
 ## Current Status
 
-Migration branch currently has baseline implementations for:
+The Tauri app includes:
 
 - Settings, presets, history persistence
 - `llama-server` lifecycle and health/log surfacing
 - Downloader start/cancel/status flow
 - Chat stream start/cancel/status flow
 - Typed Tauri API integration in the UI
-
-Parity hardening and final release consolidation are still in progress.

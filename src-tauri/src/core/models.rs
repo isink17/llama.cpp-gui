@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Upper bound for the temperature sampling parameter.
+pub const MAX_TEMPERATURE: f32 = 2.0;
+
+/// Upper bound for the max_tokens setting.
+pub const MAX_TOKENS_LIMIT: u32 = 8192;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -137,6 +143,9 @@ pub struct LlamaServerHealthStatus {
     pub healthy: bool,
     pub status_code: Option<u16>,
     pub message: Option<String>,
+    /// Classifies the failure mode (e.g., "server_crashed", "network_unreachable", "timeout").
+    /// `None` when healthy.
+    pub reason: Option<String>,
     pub url: String,
 }
 
@@ -372,6 +381,7 @@ mod tests {
             healthy: true,
             status_code: Some(200),
             message: Some("ok".to_string()),
+            reason: None,
             url: "http://127.0.0.1:8080/health".to_string(),
         })
         .unwrap();
@@ -382,6 +392,7 @@ mod tests {
                 "healthy": true,
                 "statusCode": 200,
                 "message": "ok",
+                "reason": null,
                 "url": "http://127.0.0.1:8080/health",
             })
         );

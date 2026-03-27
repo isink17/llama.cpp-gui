@@ -2,15 +2,7 @@ import type {
   LlamaProcessStatus,
   LlamaServerHealthStatus,
 } from '../lib/tauri/api';
-
-type FailureKind = 'timeout' | 'unavailable' | 'failure';
-
-type FailureView = {
-  kind: FailureKind;
-  label: string;
-  tone: 'info' | 'danger';
-  detailClass: 'timeout' | 'unavailable' | 'failure';
-};
+import { type FailureView, getFailureView } from '../utils/failure';
 
 export type LlamaServerCardProps = {
   refreshIssue: string | null;
@@ -27,67 +19,6 @@ export type LlamaServerCardProps = {
   onStopProcess: () => void;
   onClearLogs: () => void;
   llamaLogs: string[];
-};
-
-const getFailureLabel = (kind: FailureKind) => {
-  switch (kind) {
-    case 'timeout':
-      return 'Timeout';
-    case 'unavailable':
-      return 'Unavailable';
-    case 'failure':
-      return 'Failure';
-  }
-};
-
-const getFailureTone = (kind: FailureKind): FailureView['tone'] => {
-  switch (kind) {
-    case 'timeout':
-      return 'info';
-    case 'unavailable':
-    case 'failure':
-      return 'danger';
-  }
-};
-
-const getFailureDetailClass = (kind: FailureKind): FailureView['detailClass'] => {
-  switch (kind) {
-    case 'timeout':
-      return 'timeout';
-    case 'unavailable':
-      return 'unavailable';
-    case 'failure':
-      return 'failure';
-  }
-};
-
-const classifyFailureMessage = (message: string): FailureKind => {
-  const normalized = message.trim().toLowerCase();
-
-  if (normalized.includes('timed out') || normalized.includes('timeout')) {
-    return 'timeout';
-  }
-
-  if (
-    normalized.includes('unavailable') ||
-    normalized.includes('connection refused') ||
-    normalized.includes('failed to reach')
-  ) {
-    return 'unavailable';
-  }
-
-  return 'failure';
-};
-
-const buildFailureView = (message: string): FailureView => {
-  const kind = classifyFailureMessage(message);
-
-  return {
-    kind,
-    label: getFailureLabel(kind),
-    tone: getFailureTone(kind),
-    detailClass: getFailureDetailClass(kind),
-  };
 };
 
 const getHealthTone = (healthy: boolean | null) => {
@@ -144,10 +75,10 @@ export function LlamaServerCard({
   onClearLogs,
   llamaLogs,
 }: LlamaServerCardProps) {
-  const refreshFailureView = refreshIssue ? buildFailureView(refreshIssue) : null;
+  const refreshFailureView = refreshIssue ? getFailureView(refreshIssue) : null;
   const processHealthFailureView =
     processHealth && !processHealth.healthy && processHealth.message
-      ? buildFailureView(processHealth.message)
+      ? getFailureView(processHealth.message)
       : null;
   const processHealthLabel = processHealth
     ? processHealth.healthy

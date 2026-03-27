@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn model_resolver_lock_errors_are_stringified() {
-        let resolver = Arc::new(Mutex::new(ModelResolverService::new()));
+        let resolver = Arc::new(Mutex::new(ModelResolverService::new().expect("client should build")));
         let poisoned_resolver = Arc::clone(&resolver);
         let _ = std::panic::catch_unwind(move || {
             let _guard = poisoned_resolver.lock().unwrap();

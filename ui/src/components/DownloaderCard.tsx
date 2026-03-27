@@ -1,12 +1,5 @@
 import type { DownloadStatus } from '../lib/tauri/api';
-
-type FailureKind = 'timeout' | 'unavailable' | 'failure';
-
-type FailureView = {
-  label: string;
-  tone: 'info' | 'danger';
-  detailClass: FailureKind;
-};
+import { type FailureView, getFailureView } from '../utils/failure';
 
 export type DownloaderCardProps = {
   downloads: DownloadStatus[];
@@ -60,35 +53,6 @@ const getInputPlaceholder = (source: string) => {
     default:
       return 'https://...';
   }
-};
-
-const classifyFailureMessage = (message: string): FailureKind => {
-  const normalized = message.trim().toLowerCase();
-
-  if (normalized.includes('timed out') || normalized.includes('timeout')) {
-    return 'timeout';
-  }
-
-  if (
-    normalized.includes('unavailable') ||
-    normalized.includes('connection refused') ||
-    normalized.includes('failed to reach')
-  ) {
-    return 'unavailable';
-  }
-
-  return 'failure';
-};
-
-const getFailureView = (message: string): FailureView => {
-  const kind = classifyFailureMessage(message);
-
-  return {
-    label:
-      kind === 'timeout' ? 'Timeout' : kind === 'unavailable' ? 'Unavailable' : 'Failure',
-    tone: kind === 'timeout' ? 'info' : 'danger',
-    detailClass: kind,
-  };
 };
 
 const getToneForState = (value: string) => {

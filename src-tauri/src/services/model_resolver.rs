@@ -43,12 +43,12 @@ struct OllamaTag {
 }
 
 impl ModelResolverService {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, String> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("failed to build HTTP client for model resolver");
-        Self { client }
+            .map_err(|e| format!("failed to build HTTP client for model resolver: {e}"))?;
+        Ok(Self { client })
     }
 
     pub fn resolve(
@@ -595,7 +595,7 @@ mod tests {
 
     #[test]
     fn resolve_direct_url_valid() {
-        let service = ModelResolverService::new();
+        let service = ModelResolverService::new().expect("client should build");
         let result = service
             .resolve("Direct URL", "https://example.com/path/model.gguf", None)
             .unwrap();
@@ -606,7 +606,7 @@ mod tests {
 
     #[test]
     fn resolve_direct_url_fallback_filename() {
-        let service = ModelResolverService::new();
+        let service = ModelResolverService::new().expect("client should build");
         let result = service
             .resolve("Direct URL", "https://example.com/", None)
             .unwrap();
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn resolve_direct_url_rejects_non_http() {
-        let service = ModelResolverService::new();
+        let service = ModelResolverService::new().expect("client should build");
         let err = service
             .resolve("Direct URL", "ftp://example.com/model.gguf", None)
             .unwrap_err();
@@ -624,7 +624,7 @@ mod tests {
 
     #[test]
     fn resolve_unknown_source_returns_error() {
-        let service = ModelResolverService::new();
+        let service = ModelResolverService::new().expect("client should build");
         let err = service
             .resolve("Unknown Source", "something", None)
             .unwrap_err();
@@ -633,7 +633,7 @@ mod tests {
 
     #[test]
     fn resolve_hugging_face_absolute_url() {
-        let service = ModelResolverService::new();
+        let service = ModelResolverService::new().expect("client should build");
         // This won't make an HTTP call since input is an absolute URL
         let result = service
             .resolve(

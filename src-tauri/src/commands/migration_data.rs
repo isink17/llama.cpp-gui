@@ -1,9 +1,6 @@
-use crate::core::models::{HistoryEntry, Preset, Settings};
+use crate::core::models::{HistoryEntry, Preset, Settings, MAX_TEMPERATURE, MAX_TOKENS_LIMIT};
 use crate::state::app_state::AppState;
 use tauri::State;
-
-const MAX_TEMPERATURE: f32 = 2.0;
-const MAX_TOKENS_LIMIT: u32 = 8192;
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
@@ -170,11 +167,10 @@ fn validate_history_entry(entry: &HistoryEntry) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        normalize_preset_id, validate_history_entry, validate_preset, validate_settings,
-        MAX_TEMPERATURE, MAX_TOKENS_LIMIT,
+    use super::{normalize_preset_id, validate_history_entry, validate_preset, validate_settings};
+    use crate::core::models::{
+        HistoryEntry, Preset, Settings, MAX_TEMPERATURE, MAX_TOKENS_LIMIT,
     };
-    use crate::core::models::{HistoryEntry, Preset, Settings};
 
     fn valid_settings() -> Settings {
         Settings {

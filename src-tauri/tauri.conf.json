@@ -16,6 +16,8 @@
         "title": "LlamaCppDesk",
         "width": 1280,
         "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
         "resizable": true
       }
     ]
@@ -24,6 +26,15 @@
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "shortDescription": "Desktop client for llama.cpp inference",
+    "longDescription": "LlamaCppDesk is a cross-platform desktop application for managing and chatting with local llama.cpp models.",
+    "copyright": "Copyright (c) 2025 LlamaCppDesk contributors",
+    "license": "MIT",
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    }
   }
 }

@@ -45,10 +45,14 @@ pub fn run() {
 
             let service = PersistenceService::new(data_dir);
             service.ensure_data_dir().map_err(|e| e.to_string())?;
-            let process_manager = ProcessManager::new(2_000);
+            /// Maximum number of log lines retained in memory for the llama-server process.
+            const PROCESS_MAX_LOG_LINES: usize = 2_000;
+
+            let process_manager = ProcessManager::new(PROCESS_MAX_LOG_LINES);
             let downloader = DownloaderService::new();
             let chat = ChatService::new();
-            let model_resolver = ModelResolverService::new();
+            let model_resolver = ModelResolverService::new()
+                .map_err(|e| e.to_string())?;
 
             app.manage(AppState::new(service, process_manager, downloader, chat, model_resolver));
 

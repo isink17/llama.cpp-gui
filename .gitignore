@@ -1,6 +1,4 @@
 # Build outputs
-[Bb]in/
-[Oo]bj/
 publish/
 artifacts/
 
@@ -15,20 +13,6 @@ artifacts/
 .vs/
 .vscode/
 .idea/
-
-# NuGet
-packages/
-*.nupkg
-*.snupkg
-project.lock.json
-project.fragment.lock.json
-
-# Test and coverage results
-TestResults/
-*.trx
-*.coverage
-*.coveragexml
-coverage/
 
 # Logs and diagnostics
 *.log
@@ -45,9 +29,15 @@ Desktop.ini
 codegraph.sqlite
 codegraph.sqlite-shm
 codegraph.sqlite-wal
-.dotnet-home/
 
 # Tauri + UI migration artifacts
 src-tauri/target/
 ui/node_modules/
 ui/dist/
+
+# Tauri build outputs
+*.dmg
+*.msi
+*.AppImage
+*.deb
+*.rpm

@@ -1,9 +1,9 @@
-# WinUI to Tauri Parity Checklist
+# Tauri Feature Checklist
 
 Status key:
 
 - `[ ]` not started
-- `[-]` in progress or baseline implemented, but not parity-complete
+- `[-]` in progress or baseline implemented
 - `[x]` done
 
 ## Core App
@@ -37,23 +37,23 @@ Status key:
 - [-] Cancel active generation
 - [-] Handle timeout/server unavailable errors in backend and UI status surfaces
 
-## UX Parity
+## UX
 
-- [-] Settings screen baseline is wired through the typed Tauri API client; WinUI parity still pending
-- [-] Chat screen baseline is wired through the typed Tauri API client; WinUI parity still pending
-- [-] Downloader screen baseline is wired; WinUI parity still pending
-- [-] Presets and history management baselines are wired; WinUI parity still pending
+- [-] Settings screen baseline is wired through the typed Tauri API client
+- [-] Chat screen baseline is wired through the typed Tauri API client
+- [-] Downloader screen baseline is wired
+- [-] Presets and history management baselines are wired
 
 ## Packaging and Delivery
 
-- [-] CI validates the migration path on Windows/Linux/macOS
+- [-] CI validates the build path on Windows/Linux/macOS
 - [-] Artifact naming is stable and documented
 - [ ] Tag-trigger release publishing validated
 
 ## Notes
 
-- Keep this file updated per migration PR.
+- Keep this file updated per PR.
 - Link issue IDs near completed items when useful.
-- Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, cross-platform smoke coverage, per-OS smoke diagnostics on failure, optional cargo-check smoke validation, and smoke scripts; parity is still in progress.
+- Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, cross-platform smoke coverage, per-OS smoke diagnostics on failure, optional cargo-check smoke validation, and smoke scripts.
 - Error-handling work now distinguishes timeout, unavailable, and other health failures in the backend and surfaces a clearer refresh failure state in the UI.
 - Release workflow now derives a stable tag-based artifact name and shared release paths before upload/publish steps.
