@@ -52,13 +52,7 @@ jobs:
         run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check
 
   build:
-    name: Build and validate (${{ matrix.os }})
-    # Keep the Windows release paths and artifact name stable across package/upload/release steps.
-    env:
-      WINDOWS_CONFIGURATION: Release
-      WINDOWS_RUNTIME_IDENTIFIER: win-x64
-      WINDOWS_TARGET_FRAMEWORK: net10.0-windows10.0.19041.0
-      WINDOWS_ARTIFACT_PREFIX: LlamaCppDesk-win-x64
+    name: Build and release (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -76,122 +70,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Prepare release paths
-        shell: pwsh
-        run: |
-          if (-not $env:GITHUB_REF_TYPE -or $env:GITHUB_REF_TYPE -ne 'tag') {
-            throw "This workflow must run from a tag ref."
-          }
-
-          if (-not $env:GITHUB_REF_NAME) {
-            throw "GITHUB_REF_NAME is empty."
-          }
-
-          if ($env:GITHUB_REF_NAME -match '\s') {
-            throw "Tag names with whitespace are not supported."
-          }
-
-          $artifactSuffix = $env:GITHUB_REF_NAME -replace '[^A-Za-z0-9._-]', '-'
-          if (-not $artifactSuffix) {
-            throw "Unable to derive a stable artifact suffix from tag '$($env:GITHUB_REF_NAME)'."
-          }
-
-          $publishDir = Join-Path "bin" $env:WINDOWS_CONFIGURATION
-          $publishDir = Join-Path $publishDir $env:WINDOWS_TARGET_FRAMEWORK
-          $publishDir = Join-Path $publishDir $env:WINDOWS_RUNTIME_IDENTIFIER
-          $publishDir = Join-Path $publishDir "publish"
-          $exePath = Join-Path $publishDir "LlamaCppDesk.exe"
-          $zipPath = Join-Path $publishDir "$($env:WINDOWS_ARTIFACT_PREFIX).zip"
-          $artifactName = "$($env:WINDOWS_ARTIFACT_PREFIX)-$artifactSuffix"
-
-          "WINDOWS_PUBLISH_DIR=$publishDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "WINDOWS_EXE_PATH=$exePath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "WINDOWS_ZIP_PATH=$zipPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "WORKFLOW_ARTIFACT_NAME=$artifactName" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup Node
+        uses: actions/setup-node@v6
         with:
-          dotnet-version: "10.0.x"
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
 
-      - name: Restore
-        shell: pwsh
-        run: >
-          dotnet restore LlamaCppDesk.csproj
-          ${{ !matrix.publish && '-p:EnableWindowsTargeting=true' || format('-r {0} -p:PublishReadyToRun=true', env.WINDOWS_RUNTIME_IDENTIFIER) }}
-
-      - name: Build
-        if: matrix.publish
-        shell: pwsh
-        run: >
-          dotnet build LlamaCppDesk.csproj
-          -c $env:WINDOWS_CONFIGURATION
-          -r $env:WINDOWS_RUNTIME_IDENTIFIER
-          -p:Platform=x64
-          -p:PublishReadyToRun=true
-          --no-restore
-
-      - name: Publish EXE
-        if: matrix.publish
-        shell: pwsh
-        run: >
-          dotnet publish LlamaCppDesk.csproj
-          -c $env:WINDOWS_CONFIGURATION
-          -r $env:WINDOWS_RUNTIME_IDENTIFIER
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:WindowsAppSDKSelfContained=true
-          -p:PublishProfile=win-x64.pubxml
-          --no-build
-
-      - name: Package artifact
-        if: matrix.publish
-        shell: pwsh
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
         run: |
-          if (-not (Test-Path $env:WINDOWS_PUBLISH_DIR)) {
-            throw "Missing publish output directory: $env:WINDOWS_PUBLISH_DIR"
-          }
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
-          if (-not (Test-Path $env:WINDOWS_EXE_PATH)) {
-            throw "Missing publish output: $env:WINDOWS_EXE_PATH"
-          }
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-          if (Test-Path $env:WINDOWS_ZIP_PATH) { Remove-Item $env:WINDOWS_ZIP_PATH -Force }
-          Compress-Archive -Path $env:WINDOWS_EXE_PATH -DestinationPath $env:WINDOWS_ZIP_PATH
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
 
-          if (-not (Test-Path $env:WINDOWS_ZIP_PATH)) {
-            throw "Failed to create archive: $env:WINDOWS_ZIP_PATH"
-          }
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked
 
-          Write-Output "WINDOWS_ZIP_PATH=$env:WINDOWS_ZIP_PATH" >> $env:GITHUB_ENV
+      - name: Build Tauri app
+        working-directory: src-tauri
+        run: cargo tauri build
 
-      - name: Validate release artifacts
-        if: matrix.publish
-        shell: pwsh
-        run: |
-          if (-not (Test-Path $env:WINDOWS_EXE_PATH)) {
-            throw "Missing release executable: $env:WINDOWS_EXE_PATH"
-          }
-
-          if (-not (Test-Path $env:WINDOWS_ZIP_PATH)) {
-            throw "Missing release archive: $env:WINDOWS_ZIP_PATH"
-          }
-
-      - name: Upload workflow artifact
+      - name: Upload build artifacts
         if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.WORKFLOW_ARTIFACT_NAME }}
+          name: LlamaCppDesk-${{ runner.os }}-${{ github.ref_name }}
           path: |
-            ${{ env.WINDOWS_EXE_PATH }}
-            ${{ env.WINDOWS_ZIP_PATH }}
-          if-no-files-found: error
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: warn
 
       - name: Publish GitHub Release Asset
         if: matrix.publish
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.WINDOWS_EXE_PATH }}
-            ${{ env.WINDOWS_ZIP_PATH }}
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe

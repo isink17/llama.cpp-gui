@@ -27,7 +27,7 @@ impl ProcessManager {
         executable_path: String,
         args: Vec<String>,
     ) -> Result<LlamaProcessStatus, String> {
-        self.refresh_status();
+        self.refresh_status()?;
         if self.child.is_some() {
             return Err("llama-server is already running".to_string());
         }
@@ -63,13 +63,13 @@ impl ProcessManager {
         }
 
         self.child = Some(child);
-        Ok(self.status())
+        self.status()
     }
 
     pub fn stop(&mut self) -> Result<LlamaProcessStatus, String> {
-        self.refresh_status();
+        self.refresh_status()?;
         if self.child.is_none() {
-            return Ok(self.status());
+            return self.status();
         }
 
         if let Some(child) = self.child.as_mut() {
@@ -87,17 +87,17 @@ impl ProcessManager {
         }
 
         self.child = None;
-        Ok(self.status())
+        self.status()
     }
 
-    pub fn status(&mut self) -> LlamaProcessStatus {
-        self.refresh_status();
+    pub fn status(&mut self) -> Result<LlamaProcessStatus, String> {
+        self.refresh_status()?;
         let pid = self.child.as_ref().map(Child::id);
-        LlamaProcessStatus {
+        Ok(LlamaProcessStatus {
             running: self.child.is_some(),
             pid,
             last_exit_code: self.last_exit_code,
-        }
+        })
     }
 
     pub fn logs(&self, limit: usize) -> Vec<String> {
@@ -117,7 +117,7 @@ impl ProcessManager {
         }
     }
 
-    fn refresh_status(&mut self) {
+    fn refresh_status(&mut self) -> Result<(), String> {
         if let Some(child) = self.child.as_mut() {
             match child.try_wait() {
                 Ok(Some(status)) => {
@@ -131,9 +131,11 @@ impl ProcessManager {
                 Ok(None) => {}
                 Err(e) => {
                     self.push_log(format!("failed to read llama-server status: {e}"));
+                    return Err(format!("failed to read llama-server status: {e}"));
                 }
             }
         }
+        Ok(())
     }
 
     fn push_log(&mut self, line: String) {
@@ -186,7 +188,7 @@ mod tests {
     fn initial_status_is_not_running() {
         let mut manager = ProcessManager::new(3);
 
-        let status = manager.status();
+        let status = manager.status().expect("status should succeed");
 
         assert!(!status.running);
         assert_eq!(status.pid, None);
@@ -254,11 +256,11 @@ mod tests {
         manager.push_log("first".to_string());
         manager.push_log("second".to_string());
 
-        let status_before_clear = manager.status();
+        let status_before_clear = manager.status().expect("status should succeed");
 
         manager.clear_logs();
 
-        let status_after_clear = manager.status();
+        let status_after_clear = manager.status().expect("status should succeed");
 
         assert_eq!(status_before_clear.running, status_after_clear.running);
         assert_eq!(status_before_clear.pid, status_after_clear.pid);
@@ -270,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn stop_without_running_process_returns_status() {
+    fn stop_without_running_process_returns_ok_status() {
         let mut manager = ProcessManager::new(3);
 
         let status = manager.stop().expect("stop should not error when idle");

@@ -322,7 +322,12 @@ fn run_stream_worker(
 }
 
 fn emit_event(app_handle: &AppHandle, event: ChatStreamEvent) {
-    let _ = app_handle.emit("chat_stream_event", event);
+    if let Err(err) = app_handle.emit("chat_stream_event", &event) {
+        eprintln!(
+            "failed to emit chat_stream_event (stream_id={}, type={}): {err}",
+            event.stream_id, event.event_type
+        );
+    }
 }
 
 fn fail_stream(

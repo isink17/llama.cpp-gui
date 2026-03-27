@@ -1,6 +1,6 @@
 # Migration Documentation
 
-This folder tracks migration progress from the current WinUI app to the Tauri multiplatform app.
+This folder tracks the migration to the Tauri multiplatform app.
 
 ## Branching Rules
 
@@ -60,5 +60,5 @@ Frontend wiring is still a baseline bridge in `ui/src/lib/tauri/index.ts` and `u
 
 ## Documents
 
-- `parity-checklist.md`: feature parity tracking between WinUI and Tauri targets
+- `parity-checklist.md`: feature checklist for the Tauri app
 - `runbook.md`: end-to-end execution workflow for migration work items

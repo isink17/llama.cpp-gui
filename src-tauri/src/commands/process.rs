@@ -9,7 +9,8 @@ const DEFAULT_LOG_LIMIT: usize = 200;
 const MAX_LOG_LIMIT: usize = 2000;
 const DEFAULT_HEALTH_URL: &str = "http://127.0.0.1:8080/health";
 const DEFAULT_READY_TIMEOUT_SECS: u64 = 45;
-const READY_POLL_INTERVAL_MS: u64 = 600;
+const READY_POLL_INITIAL_MS: u64 = 100;
+const READY_POLL_MAX_MS: u64 = 600;
 const READY_REQUEST_TIMEOUT_SECS: u64 = 5;
 
 #[tauri::command]
@@ -31,7 +32,7 @@ pub fn stop_llama_server(state: State<'_, AppState>) -> Result<LlamaProcessStatu
 #[tauri::command]
 pub fn get_llama_server_status(state: State<'_, AppState>) -> Result<LlamaProcessStatus, String> {
     let mut manager = state.process_manager.lock().map_err(|e| e.to_string())?;
-    Ok(manager.status())
+    manager.status()
 }
 
 #[tauri::command]
@@ -65,10 +66,17 @@ fn health_status_from_response(url: String, status: StatusCode) -> LlamaServerHe
         Some(format!("health check failed with HTTP status {status}"))
     };
 
+    let reason = if healthy {
+        None
+    } else {
+        Some("unhealthy_status".to_string())
+    };
+
     LlamaServerHealthStatus {
         healthy,
         status_code: Some(status.as_u16()),
         message,
+        reason,
         url,
     }
 }
@@ -92,6 +100,14 @@ fn health_error_message(url: &str, kind: HealthFailureKind, err: impl std::fmt::
     }
 }
 
+fn reason_from_failure_kind(kind: HealthFailureKind) -> String {
+    match kind {
+        HealthFailureKind::Timeout => "timeout".to_string(),
+        HealthFailureKind::Unavailable => "network_unreachable".to_string(),
+        HealthFailureKind::Other => "unknown".to_string(),
+    }
+}
+
 fn health_status_from_error(
     url: String,
     kind: HealthFailureKind,
@@ -101,6 +117,7 @@ fn health_status_from_error(
         healthy: false,
         status_code: None,
         message: Some(health_error_message(&url, kind, err)),
+        reason: Some(reason_from_failure_kind(kind)),
         url,
     }
 }
@@ -138,7 +155,7 @@ pub fn wait_for_server_ready(
     timeout_secs: Option<u64>,
 ) -> Result<LlamaServerHealthStatus, String> {
     let timeout = Duration::from_secs(timeout_secs.unwrap_or(DEFAULT_READY_TIMEOUT_SECS));
-    let interval = Duration::from_millis(READY_POLL_INTERVAL_MS);
+    let mut interval = Duration::from_millis(READY_POLL_INITIAL_MS);
     let base = server_url.trim_end_matches('/');
     let health_url = format!("{base}/health");
     let models_url = format!("{base}/v1/models");
@@ -157,6 +174,7 @@ pub fn wait_for_server_ready(
                     healthy: true,
                     status_code: Some(resp.status().as_u16()),
                     message: Some("Server is ready".to_string()),
+                    reason: None,
                     url: health_url,
                 });
             }
@@ -168,17 +186,19 @@ pub fn wait_for_server_ready(
                     healthy: true,
                     status_code: Some(resp.status().as_u16()),
                     message: Some("Server is ready".to_string()),
+                    reason: None,
                     url: models_url,
                 });
             }
         }
 
         std::thread::sleep(interval);
+        interval = (interval * 2).min(Duration::from_millis(READY_POLL_MAX_MS));
     }
 
     Err(format!(
-        "Timed out waiting for server to be ready ({timeout_secs}s)",
-        timeout_secs = timeout.as_secs()
+        "Timed out waiting for server to be ready ({}s)",
+        timeout.as_secs()
     ))
 }
 
@@ -224,6 +244,7 @@ mod tests {
         assert!(healthy.healthy);
         assert_eq!(healthy.status_code, Some(200));
         assert_eq!(healthy.message.as_deref(), Some("llama-server is healthy"));
+        assert_eq!(healthy.reason, None);
         assert_eq!(healthy.url, "http://127.0.0.1:9000/health");
 
         let unhealthy = health_status_from_response(
@@ -236,6 +257,7 @@ mod tests {
             unhealthy.message.as_deref(),
             Some("health check failed with HTTP status 503 Service Unavailable")
         );
+        assert_eq!(unhealthy.reason.as_deref(), Some("unhealthy_status"));
         assert_eq!(unhealthy.url, "http://127.0.0.1:9000/health");
     }
 
@@ -253,6 +275,7 @@ mod tests {
             status.message.as_deref(),
             Some("llama-server at http://127.0.0.1:8080/health is unavailable: connection refused")
         );
+        assert_eq!(status.reason.as_deref(), Some("network_unreachable"));
         assert_eq!(status.url, "http://127.0.0.1:8080/health");
     }
 

@@ -1,7 +1,7 @@
 use tauri_plugin_dialog::DialogExt;
 
 #[tauri::command]
-pub async fn pick_file(
+pub fn pick_file(
     app: tauri::AppHandle,
     title: String,
     extensions: Vec<String>,
@@ -19,7 +19,7 @@ pub async fn pick_file(
 }
 
 #[tauri::command]
-pub async fn pick_folder(
+pub fn pick_folder(
     app: tauri::AppHandle,
     title: String,
 ) -> Result<Option<String>, String> {

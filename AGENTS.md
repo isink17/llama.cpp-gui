@@ -48,7 +48,7 @@ This file defines subagent ownership for the Tauri multiplatform migration.
 ## Agent D: QA, Parity, and Documentation
 
 - Scope:
-  - Parity checklist versus WinUI app features.
+  - Parity checklist versus prior app features.
   - Smoke tests and migration runbook.
   - Developer onboarding docs for local build and release.
 - Owns:
@@ -79,8 +79,6 @@ Use branch names like `feature/migration/<n1>`, `feature/migration/<n2>`, etc.
 
 ## Module Map
 
-- Legacy WinUI app:
-  - `App.xaml`, `Views/*`, `Services/*`, `Models/*`, `Converters/*`
 - Tauri backend:
   - `src-tauri/src/core/*`
   - `src-tauri/src/services/*`

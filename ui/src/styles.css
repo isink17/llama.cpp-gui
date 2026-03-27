@@ -411,3 +411,117 @@ button.small {
     flex-direction: column;
   }
 }
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    color: #1e293b;
+  }
+
+  h3 {
+    color: #475569;
+  }
+
+  .eyebrow {
+    color: #3b82f6;
+  }
+
+  .card {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .health-panel {
+    background: rgba(248, 250, 252, 0.85);
+    border-color: rgba(100, 116, 139, 0.2);
+  }
+
+  .status-detail {
+    background: rgba(248, 250, 252, 0.9);
+    border-color: rgba(100, 116, 139, 0.2);
+  }
+
+  .status-detail-text {
+    color: #334155;
+  }
+
+  label {
+    color: #475569;
+  }
+
+  input,
+  textarea,
+  select {
+    background: #ffffff;
+    color: #1e293b;
+    border-color: #cbd5e1;
+  }
+
+  pre {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .entry-card {
+    background: rgba(248, 250, 252, 0.9);
+    border-color: rgba(100, 116, 139, 0.2);
+  }
+
+  .entry-card p {
+    color: #334155;
+  }
+
+  .health-message {
+    color: #475569;
+  }
+
+  .hint {
+    color: #64748b;
+  }
+
+  .empty-state {
+    color: #64748b;
+  }
+
+  .status-line {
+    color: #64748b;
+  }
+
+  button:disabled {
+    background: #cbd5e1;
+  }
+
+  button.secondary {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+
+  button.secondary:hover {
+    background: #cbd5e1;
+  }
+
+  button.secondary:disabled,
+  button.secondary:disabled:hover {
+    background: #e2e8f0;
+    color: #94a3b8;
+  }
+
+  .status-pill.idle,
+  .status-badge.neutral {
+    color: #475569;
+    background: rgba(241, 245, 249, 0.9);
+    border-color: rgba(100, 116, 139, 0.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
