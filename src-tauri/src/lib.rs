@@ -7,15 +7,15 @@ use commands::chat::{
     cancel_chat_stream, get_chat_stream_status, get_chat_stream_statuses, start_chat_stream,
 };
 use commands::dialogs::{pick_file, pick_folder};
-use commands::model_resolver::{
-    list_hugging_face_files, list_ollama_tags, resolve_model_reference,
-};
 use commands::downloader::{
     cancel_download, get_download_status, get_download_statuses, start_download,
 };
 use commands::migration_data::{
     append_history, clear_history, delete_preset, get_history, get_presets, get_settings,
     save_preset, save_settings,
+};
+use commands::model_resolver::{
+    list_hugging_face_files, list_ollama_tags, resolve_model_reference,
 };
 use commands::process::{
     check_llama_server_health, clear_llama_server_logs, get_llama_server_logs,
@@ -51,10 +51,15 @@ pub fn run() {
             let process_manager = ProcessManager::new(PROCESS_MAX_LOG_LINES);
             let downloader = DownloaderService::new();
             let chat = ChatService::new();
-            let model_resolver = ModelResolverService::new()
-                .map_err(|e| e.to_string())?;
+            let model_resolver = ModelResolverService::new().map_err(|e| e.to_string())?;
 
-            app.manage(AppState::new(service, process_manager, downloader, chat, model_resolver));
+            app.manage(AppState::new(
+                service,
+                process_manager,
+                downloader,
+                chat,
+                model_resolver,
+            ));
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("LlamaCppDesk");

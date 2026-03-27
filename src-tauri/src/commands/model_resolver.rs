@@ -31,10 +31,7 @@ pub fn list_hugging_face_files(
 }
 
 #[tauri::command]
-pub fn list_ollama_tags(
-    state: State<'_, AppState>,
-    input: String,
-) -> Result<Vec<String>, String> {
+pub fn list_ollama_tags(state: State<'_, AppState>, input: String) -> Result<Vec<String>, String> {
     let resolver = lock_model_resolver(&state.inner().model_resolver)?;
     resolver.list_ollama_tags(&input)
 }
@@ -47,7 +44,9 @@ mod tests {
 
     #[test]
     fn model_resolver_lock_errors_are_stringified() {
-        let resolver = Arc::new(Mutex::new(ModelResolverService::new().expect("client should build")));
+        let resolver = Arc::new(Mutex::new(
+            ModelResolverService::new().expect("client should build"),
+        ));
         let poisoned_resolver = Arc::clone(&resolver);
         let _ = std::panic::catch_unwind(move || {
             let _guard = poisoned_resolver.lock().unwrap();

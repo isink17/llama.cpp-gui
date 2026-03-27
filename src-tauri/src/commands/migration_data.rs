@@ -168,9 +168,7 @@ fn validate_history_entry(entry: &HistoryEntry) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{normalize_preset_id, validate_history_entry, validate_preset, validate_settings};
-    use crate::core::models::{
-        HistoryEntry, Preset, Settings, MAX_TEMPERATURE, MAX_TOKENS_LIMIT,
-    };
+    use crate::core::models::{HistoryEntry, Preset, Settings, MAX_TEMPERATURE, MAX_TOKENS_LIMIT};
 
     fn valid_settings() -> Settings {
         Settings {
