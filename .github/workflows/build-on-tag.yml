@@ -38,6 +38,9 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
+      - name: Clean npm cache
+        run: npm cache clean --force
+
       - name: Install UI dependencies
         working-directory: ui
         run: npm ci
@@ -91,6 +94,9 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Clean npm cache
+        run: npm cache clean --force
 
       - name: Install UI dependencies
         working-directory: ui
