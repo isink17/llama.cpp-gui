@@ -15,7 +15,7 @@ pub fn pick_file(
         .add_filter("Allowed files", &ext_refs)
         .blocking_pick_file();
 
-    Ok(file_path.map(|fp| fp.to_string_lossy().to_string()))
+    Ok(file_path.map(|fp| fp.to_string()))
 }
 
 #[tauri::command]
@@ -29,5 +29,5 @@ pub fn pick_folder(
         .set_title(&title)
         .blocking_pick_folder();
 
-    Ok(folder_path.map(|fp| fp.to_string_lossy().to_string()))
+    Ok(folder_path.map(|fp| fp.to_string()))
 }
