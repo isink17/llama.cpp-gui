@@ -21,6 +21,12 @@ import {
   startDownload as startDownloadCommand,
   startLlamaServer as startLlamaServerCommand,
   stopLlamaServer as stopLlamaServerCommand,
+  waitForServerReady,
+  pickFile,
+  pickFolder,
+  resolveModelReference,
+  listHuggingFaceFiles,
+  listOllamaTags,
   type ChatStreamEvent,
   type ChatStreamStatus,
   type DownloadStatus,
@@ -41,6 +47,7 @@ import { ChatCard } from './components/ChatCard';
 const LOG_LIMIT = 200;
 const REFRESH_INTERVAL_MS = 4000;
 const HISTORY_ROLES: HistoryEntry['role'][] = ['system', 'user', 'assistant'];
+const MAX_PROMPT_HISTORY = 40;
 
 const createId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -52,12 +59,20 @@ const formatTimestamp = (value: string) => {
 
 function App() {
   const [settings, setSettings] = useState<Settings>({
-    serverUrl: 'http://127.0.0.1:8080',
-    maxTokens: 512,
+    llamaServerPath: '',
+    modelPath: '',
+    host: '127.0.0.1',
+    port: 8080,
+    contextSize: 4096,
+    threads: 4,
+    gpuLayers: 0,
     temperature: 0.7,
+    maxTokens: 512,
+    downloadFolder: '',
+    recentModelPaths: [],
+    recentServerPaths: [],
+    recentModelUrls: [],
   });
-  const [processPath, setProcessPath] = useState('llama-server');
-  const [processArgs, setProcessArgs] = useState('--port 8080');
   const [processStatus, setProcessStatus] = useState<LlamaProcessStatus>({
     running: false,
   });
@@ -74,12 +89,19 @@ function App() {
   const [llamaLogs, setLlamaLogs] = useState<string[]>([]);
 
   const [presets, setPresets] = useState<Preset[]>([]);
-  const [presetDraft, setPresetDraft] = useState<Preset>({
+  const emptyPresetDraft: Preset = {
     id: '',
     name: '',
-    systemPrompt: '',
-    createdAt: '',
-  });
+    modelPath: '',
+    host: '127.0.0.1',
+    port: 8080,
+    contextSize: 4096,
+    threads: 4,
+    gpuLayers: 0,
+    temperature: 0.7,
+    maxTokens: 512,
+  };
+  const [presetDraft, setPresetDraft] = useState<Preset>(emptyPresetDraft);
 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [historyRole, setHistoryRole] = useState<HistoryEntry['role']>('user');
@@ -89,6 +111,18 @@ function App() {
   const [chatPrompt, setChatPrompt] = useState('');
   const [chatLog, setChatLog] = useState<string[]>([]);
   const [chatStatuses, setChatStatuses] = useState<ChatStreamStatus[]>([]);
+
+  const [downloadSource, setDownloadSource] = useState('direct');
+  const [hfToken, setHfToken] = useState('');
+  const [hfFiles, setHfFiles] = useState<string[]>([]);
+  const [ollamaTags, setOllamaTags] = useState<string[]>([]);
+  const [selectedHfFile, setSelectedHfFile] = useState('');
+  const [selectedOllamaTag, setSelectedOllamaTag] = useState('');
+  const [downloadFileName, setDownloadFileName] = useState('');
+
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [promptHistoryIndex, setPromptHistoryIndex] = useState(-1);
+  const [promptDraftBeforeHistory, setPromptDraftBeforeHistory] = useState('');
 
   const [message, setMessage] = useState('');
   const [busyActions, setBusyActions] = useState<Record<string, boolean>>({});
@@ -210,19 +244,14 @@ function App() {
   };
 
   const resetPresetDraft = () => {
-    setPresetDraft({
-      id: '',
-      name: '',
-      systemPrompt: '',
-      createdAt: '',
-    });
+    setPresetDraft(emptyPresetDraft);
   };
 
   const editPreset = (preset: Preset) => {
     setPresetDraft(preset);
   };
 
-  const savePreset = async () => {
+  const savePresetFromSettings = async () => {
     await withBusyAction('savePreset', async () => {
       try {
         const trimmedName = presetDraft.name.trim();
@@ -234,8 +263,14 @@ function App() {
         const payload: Preset = {
           id: presetDraft.id.trim() || createId('preset'),
           name: trimmedName,
-          systemPrompt: presetDraft.systemPrompt,
-          createdAt: presetDraft.createdAt.trim() || new Date().toISOString(),
+          modelPath: settings.modelPath,
+          host: settings.host,
+          port: settings.port,
+          contextSize: settings.contextSize,
+          threads: settings.threads,
+          gpuLayers: settings.gpuLayers,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
         };
 
         const next = await savePresetCommand({
@@ -248,6 +283,21 @@ function App() {
         setMessage(String(error));
       }
     });
+  };
+
+  const applyPreset = (preset: Preset) => {
+    setSettings((prev) => ({
+      ...prev,
+      modelPath: preset.modelPath,
+      host: preset.host,
+      port: preset.port,
+      contextSize: preset.contextSize,
+      threads: preset.threads,
+      gpuLayers: preset.gpuLayers,
+      temperature: preset.temperature,
+      maxTokens: preset.maxTokens,
+    }));
+    setMessage(`Preset '${preset.name}' applied.`);
   };
 
   const deletePreset = async (presetId: string) => {
@@ -304,20 +354,40 @@ function App() {
     });
   };
 
+  const buildServerArgs = (): string[] => {
+    const args = [
+      '--host', settings.host,
+      '--port', String(settings.port),
+      '-m', settings.modelPath,
+      '-c', String(settings.contextSize),
+      '-t', String(settings.threads),
+    ];
+    if (settings.gpuLayers > 0) {
+      args.push('--n-gpu-layers', String(settings.gpuLayers));
+    }
+    return args;
+  };
+
+  const serverUrl = `http://${settings.host}:${settings.port}`;
+
   const startProcess = async () => {
     await withBusyAction('startProcess', async () => {
       try {
-        const args = processArgs
-          .split(' ')
-          .map((item) => item.trim())
-          .filter(Boolean);
         const status = await startLlamaServerCommand({
-          executablePath: processPath,
-          args,
+          executablePath: settings.llamaServerPath,
+          args: buildServerArgs(),
         });
         setProcessStatus(status);
         setProcessHealth(null);
-        setMessage('llama-server started.');
+        setMessage('llama-server started. Waiting for readiness...');
+
+        try {
+          const health = await waitForServerReady({ serverUrl });
+          setProcessHealth(health);
+          setMessage('Server ready.');
+        } catch (readyError) {
+          setMessage(`Server started but not ready: ${String(readyError)}`);
+        }
       } catch (error) {
         setMessage(String(error));
       }
@@ -371,7 +441,7 @@ function App() {
         setChatLog([]);
         await startChatStreamCommand({
           request: {
-            serverUrl: settings.serverUrl,
+            serverUrl: serverUrl,
             model: chatModel,
             messages: [{ role: 'user', content: chatPrompt }],
             maxTokens: settings.maxTokens,
@@ -402,6 +472,136 @@ function App() {
     });
   };
 
+  const trackPromptHistory = useCallback((prompt: string) => {
+    setPromptHistory((prev) => {
+      const filtered = prev.filter((entry) => entry !== prompt);
+      const next = [...filtered, prompt];
+      if (next.length > MAX_PROMPT_HISTORY) {
+        return next.slice(next.length - MAX_PROMPT_HISTORY);
+      }
+      return next;
+    });
+  }, []);
+
+  const navigatePromptHistory = useCallback(
+    (direction: number) => {
+      setPromptHistoryIndex((prevIndex) => {
+        const length = promptHistory.length;
+        if (length === 0) return -1;
+
+        if (prevIndex === -1 && direction === -1) {
+          setPromptDraftBeforeHistory(chatPrompt);
+          const newIndex = length - 1;
+          setChatPrompt(promptHistory[newIndex]);
+          return newIndex;
+        }
+
+        const newIndex = prevIndex + direction;
+
+        if (newIndex < 0) {
+          setChatPrompt(promptHistory[0]);
+          return 0;
+        }
+
+        if (newIndex >= length) {
+          setChatPrompt(promptDraftBeforeHistory);
+          setPromptDraftBeforeHistory('');
+          return -1;
+        }
+
+        setChatPrompt(promptHistory[newIndex]);
+        return newIndex;
+      });
+    },
+    [promptHistory, chatPrompt, promptDraftBeforeHistory],
+  );
+
+  const resetPromptHistoryNavigation = useCallback(() => {
+    setPromptHistoryIndex(-1);
+    setPromptDraftBeforeHistory('');
+  }, []);
+
+  const handleSlashCommand = useCallback(
+    (text: string): boolean => {
+      const trimmed = text.trim().toLowerCase();
+      if (!trimmed.startsWith('/')) return false;
+
+      switch (trimmed) {
+        case '/help':
+          setMessage('Commands: /help, /clear, /copylast, /stop, /status, /reuselast');
+          return true;
+        case '/clear':
+          setChatLog([]);
+          setMessage('Chat cleared.');
+          return true;
+        case '/copylast': {
+          const lastAssistantText = [...chatLog].reverse().find((chunk) => chunk.length > 0);
+          if (lastAssistantText) {
+            void navigator.clipboard.writeText(chatLog.join(''));
+            setMessage('Last reply copied.');
+          } else {
+            setMessage('No reply to copy.');
+          }
+          return true;
+        }
+        case '/stop':
+          if (activeStream) {
+            void cancelChat();
+            setMessage('Stopping generation...');
+          } else {
+            setMessage('No active stream to stop.');
+          }
+          return true;
+        case '/status':
+          setMessage(
+            processStatus.running
+              ? `Server is running (pid: ${processStatus.pid ?? 'unknown'}).`
+              : 'Server is not running.',
+          );
+          return true;
+        case '/reuselast': {
+          const replyText = chatLog.join('');
+          if (replyText.length > 0) {
+            setChatPrompt(replyText);
+            setMessage('Last reply moved to prompt.');
+          } else {
+            setMessage('No reply to reuse.');
+          }
+          return true;
+        }
+        default:
+          return false;
+      }
+    },
+    [chatLog, activeStream, cancelChat, processStatus],
+  );
+
+  const sendChatPrompt = useCallback(async () => {
+    const trimmed = chatPrompt.trim();
+    if (!trimmed) return;
+
+    if (handleSlashCommand(trimmed)) {
+      setChatPrompt('');
+      return;
+    }
+
+    if (activeStream) {
+      setMessage('A chat stream is already active.');
+      return;
+    }
+
+    trackPromptHistory(trimmed);
+    resetPromptHistoryNavigation();
+    await startChat();
+  }, [
+    chatPrompt,
+    handleSlashCommand,
+    activeStream,
+    trackPromptHistory,
+    resetPromptHistoryNavigation,
+    startChat,
+  ]);
+
   const clearLogs = async () => {
     await withBusyAction('clearLogs', async () => {
       try {
@@ -418,11 +618,11 @@ function App() {
     await withBusyAction('checkHealth', async () => {
       try {
         const health = await getLlamaServerHealth({
-          url: `${settings.serverUrl.replace(/\/$/, '')}/health`,
+          url: `${serverUrl.replace(/\/$/, '')}/health`,
         });
         setProcessHealth(health);
       } catch (error) {
-        const healthUrl = `${settings.serverUrl.replace(/\/$/, '')}/health`;
+        const healthUrl = `${serverUrl.replace(/\/$/, '')}/health`;
         const errorMessage = String(error);
         setProcessHealth({
           healthy: false,
@@ -431,6 +631,130 @@ function App() {
           url: healthUrl,
         });
         setMessage(errorMessage);
+      }
+    });
+  };
+
+  const browseServerPath = async () => {
+    try {
+      const result = await pickFile({
+        title: 'Select llama-server executable',
+        extensions: ['exe', ''],
+      });
+      if (result) {
+        setSettings((prev) => ({ ...prev, llamaServerPath: result }));
+      }
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const browseModelPath = async () => {
+    try {
+      const result = await pickFile({
+        title: 'Select GGUF model file',
+        extensions: ['gguf'],
+      });
+      if (result) {
+        setSettings((prev) => ({ ...prev, modelPath: result }));
+      }
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const browseDownloadFolder = async () => {
+    try {
+      const result = await pickFolder({
+        title: 'Select download folder',
+      });
+      if (result) {
+        setSettings((prev) => ({ ...prev, downloadFolder: result }));
+      }
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
+  const loadHfFiles = async () => {
+    await withBusyAction('loadHfFiles', async () => {
+      try {
+        const files = await listHuggingFaceFiles({
+          input: downloadUrl,
+          hfToken: hfToken || null,
+        });
+        setHfFiles(files);
+        if (files.length > 0) {
+          setSelectedHfFile(files[0]);
+        }
+        setMessage(`Loaded ${files.length} file(s) from repository.`);
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
+  };
+
+  const loadOllamaTags = async () => {
+    await withBusyAction('loadOllamaTags', async () => {
+      try {
+        const tags = await listOllamaTags({ input: downloadUrl });
+        setOllamaTags(tags);
+        if (tags.length > 0) {
+          setSelectedOllamaTag(tags[0]);
+        }
+        setMessage(`Loaded ${tags.length} tag(s).`);
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
+  };
+
+  const startDownloadWithResolve = async () => {
+    await withBusyAction('startDownload', async () => {
+      try {
+        let resolvedUrl = downloadUrl;
+        let fileName = downloadFileName;
+        let headers: Record<string, string> | null | undefined;
+
+        if (downloadSource === 'huggingface' || downloadSource === 'ollama') {
+          const sourceLabel =
+            downloadSource === 'huggingface' ? 'Hugging Face' : 'Ollama Library';
+          const input =
+            downloadSource === 'huggingface'
+              ? selectedHfFile
+                ? `${downloadUrl}::${selectedHfFile}`
+                : downloadUrl
+              : selectedOllamaTag
+                ? `${downloadUrl}:${selectedOllamaTag}`
+                : downloadUrl;
+
+          const resolved = await resolveModelReference({
+            source: sourceLabel,
+            input,
+            hfToken: hfToken || null,
+          });
+
+          resolvedUrl = resolved.downloadUrl;
+          headers = resolved.requestHeaders;
+          if (!fileName) {
+            fileName = resolved.suggestedFileName;
+          }
+        }
+
+        const destFolder = downloadPath || settings.downloadFolder;
+        const destPath = fileName
+          ? `${destFolder.replace(/[\\/]$/, '')}/${fileName}`
+          : downloadPath;
+
+        await startDownloadCommand({
+          sourceUrl: resolvedUrl,
+          destinationPath: destPath,
+        });
+        const next = await getDownloadStatuses();
+        setDownloads(next);
+        setMessage('Download started.');
+      } catch (error) {
+        setMessage(String(error));
       }
     });
   };
@@ -477,31 +801,25 @@ function App() {
         <SettingsCard
           settings={settings}
           isSaving={isSavingSettings}
-          onServerUrlChange={(value) =>
-            setSettings((prev) => ({ ...prev, serverUrl: value }))
-          }
-          onMaxTokensChange={(value) =>
-            setSettings((prev) => ({ ...prev, maxTokens: value }))
-          }
-          onTemperatureChange={(value) =>
-            setSettings((prev) => ({ ...prev, temperature: value }))
+          onChange={(patch) =>
+            setSettings((prev) => ({ ...prev, ...patch }))
           }
           onSave={() => void saveSettings()}
+          onBrowseServerPath={() => void browseServerPath()}
+          onBrowseModelPath={() => void browseModelPath()}
+          onBrowseDownloadFolder={() => void browseDownloadFolder()}
         />
 
         <LlamaServerCard
           refreshIssue={refreshIssue}
           processStatus={processStatus}
           processHealth={processHealth}
-          processPath={processPath}
-          processArgs={processArgs}
+          serverUrl={serverUrl}
           isCheckingHealth={isCheckingHealth}
           isProcessTransitionBusy={isProcessTransitionBusy}
           isStartingProcess={isBusy('startProcess')}
           isStoppingProcess={isBusy('stopProcess')}
           isClearingLogs={isClearingLogs}
-          onProcessPathChange={setProcessPath}
-          onProcessArgsChange={setProcessArgs}
           onCheckHealth={() => void checkProcessHealth()}
           onStartProcess={() => void startProcess()}
           onStopProcess={() => void stopProcess()}
@@ -512,13 +830,14 @@ function App() {
         <PresetsCard
           presets={presets}
           presetDraft={presetDraft}
+          settings={settings}
           onNewPreset={resetPresetDraft}
           onResetPresetDraft={resetPresetDraft}
           onPresetDraftChange={setPresetDraft}
-          onSavePreset={() => void savePreset()}
+          onSavePresetFromSettings={() => void savePresetFromSettings()}
+          onApplyPreset={applyPreset}
           onEditPreset={editPreset}
           onDeletePreset={(presetId) => void deletePreset(presetId)}
-          formatTimestamp={formatTimestamp}
           isSaving={isSavingPreset}
           isDeletingPreset={isDeletingPreset}
         />
@@ -544,8 +863,22 @@ function App() {
           isCancellingDownload={isCancellingDownload}
           onDownloadUrlChange={setDownloadUrl}
           onDownloadPathChange={setDownloadPath}
-          onStartDownload={() => void startDownload()}
+          onStartDownload={() => void startDownloadWithResolve()}
           onCancelDownload={(downloadId) => void cancelDownload(downloadId)}
+          downloadSource={downloadSource}
+          hfToken={hfToken}
+          hfFiles={hfFiles}
+          ollamaTags={ollamaTags}
+          selectedHfFile={selectedHfFile}
+          selectedOllamaTag={selectedOllamaTag}
+          downloadFileName={downloadFileName}
+          onDownloadSourceChange={setDownloadSource}
+          onHfTokenChange={setHfToken}
+          onLoadHfFiles={() => void loadHfFiles()}
+          onLoadOllamaTags={() => void loadOllamaTags()}
+          onSelectedHfFileChange={setSelectedHfFile}
+          onSelectedOllamaTagChange={setSelectedOllamaTag}
+          onDownloadFileNameChange={setDownloadFileName}
         />
 
         <ChatCard
@@ -558,8 +891,12 @@ function App() {
           canCancelChat={Boolean(activeStream)}
           onChatModelChange={setChatModel}
           onChatPromptChange={setChatPrompt}
-          onStartChat={() => void startChat()}
+          onStartChat={() => void sendChatPrompt()}
           onCancelChat={() => void cancelChat()}
+          onUseAsPrompt={(text) => setChatPrompt(text)}
+          onSendPrompt={() => void sendChatPrompt()}
+          onNavigateHistory={navigatePromptHistory}
+          onCancelGeneration={() => void cancelChat()}
         />
       </section>
 

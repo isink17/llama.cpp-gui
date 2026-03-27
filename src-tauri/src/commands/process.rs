@@ -2,11 +2,15 @@ use crate::core::models::{LlamaProcessStatus, LlamaServerHealthStatus};
 use crate::state::app_state::AppState;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
+use std::time::{Duration, Instant};
 use tauri::State;
 
 const DEFAULT_LOG_LIMIT: usize = 200;
 const MAX_LOG_LIMIT: usize = 2000;
 const DEFAULT_HEALTH_URL: &str = "http://127.0.0.1:8080/health";
+const DEFAULT_READY_TIMEOUT_SECS: u64 = 45;
+const READY_POLL_INTERVAL_MS: u64 = 600;
+const READY_REQUEST_TIMEOUT_SECS: u64 = 5;
 
 #[tauri::command]
 pub fn start_llama_server(
@@ -126,6 +130,56 @@ pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealt
             Ok(health_status_from_error(url, kind, err))
         }
     }
+}
+
+#[tauri::command]
+pub fn wait_for_server_ready(
+    server_url: String,
+    timeout_secs: Option<u64>,
+) -> Result<LlamaServerHealthStatus, String> {
+    let timeout = Duration::from_secs(timeout_secs.unwrap_or(DEFAULT_READY_TIMEOUT_SECS));
+    let interval = Duration::from_millis(READY_POLL_INTERVAL_MS);
+    let base = server_url.trim_end_matches('/');
+    let health_url = format!("{base}/health");
+    let models_url = format!("{base}/v1/models");
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(READY_REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+
+    let start = Instant::now();
+
+    while start.elapsed() < timeout {
+        if let Ok(resp) = client.get(&health_url).send() {
+            if resp.status().is_success() {
+                return Ok(LlamaServerHealthStatus {
+                    healthy: true,
+                    status_code: Some(resp.status().as_u16()),
+                    message: Some("Server is ready".to_string()),
+                    url: health_url,
+                });
+            }
+        }
+
+        if let Ok(resp) = client.get(&models_url).send() {
+            if resp.status().is_success() {
+                return Ok(LlamaServerHealthStatus {
+                    healthy: true,
+                    status_code: Some(resp.status().as_u16()),
+                    message: Some("Server is ready".to_string()),
+                    url: models_url,
+                });
+            }
+        }
+
+        std::thread::sleep(interval);
+    }
+
+    Err(format!(
+        "Timed out waiting for server to be ready ({timeout_secs}s)",
+        timeout_secs = timeout.as_secs()
+    ))
 }
 
 #[cfg(test)]

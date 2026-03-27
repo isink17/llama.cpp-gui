@@ -89,9 +89,19 @@ mod tests {
         let service = PersistenceService::new(data_dir.clone());
 
         let settings = Settings {
-            server_url: "http://localhost:8081".to_string(),
-            max_tokens: 1024,
+            llama_server_path: "/usr/bin/llama-server".to_string(),
+            model_path: "/models/test.gguf".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 8081,
+            context_size: 4096,
+            threads: 4,
+            gpu_layers: 8,
             temperature: 0.5,
+            max_tokens: 1024,
+            download_folder: "/downloads".to_string(),
+            recent_model_paths: vec!["/models/a.gguf".to_string()],
+            recent_server_paths: vec![],
+            recent_model_urls: vec![],
         };
 
         service
@@ -99,9 +109,17 @@ mod tests {
             .expect("save should succeed");
         let loaded = service.load_settings().expect("load should succeed");
 
-        assert_eq!(loaded.server_url, settings.server_url);
+        assert_eq!(loaded.llama_server_path, settings.llama_server_path);
+        assert_eq!(loaded.model_path, settings.model_path);
+        assert_eq!(loaded.host, settings.host);
+        assert_eq!(loaded.port, settings.port);
+        assert_eq!(loaded.context_size, settings.context_size);
+        assert_eq!(loaded.threads, settings.threads);
+        assert_eq!(loaded.gpu_layers, settings.gpu_layers);
         assert_eq!(loaded.max_tokens, settings.max_tokens);
         assert!((loaded.temperature - settings.temperature).abs() < f32::EPSILON);
+        assert_eq!(loaded.download_folder, settings.download_folder);
+        assert_eq!(loaded.recent_model_paths, settings.recent_model_paths);
 
         let _ = fs::remove_dir_all(data_dir);
     }
@@ -114,8 +132,14 @@ mod tests {
         let presets = vec![Preset {
             id: "p1".to_string(),
             name: "Default".to_string(),
-            system_prompt: "You are helpful.".to_string(),
-            created_at: "2026-03-26T12:00:00Z".to_string(),
+            model_path: "/models/test.gguf".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 8080,
+            context_size: 4096,
+            threads: 4,
+            gpu_layers: 0,
+            temperature: 0.7,
+            max_tokens: 512,
         }];
         let history = vec![HistoryEntry {
             id: "h1".to_string(),

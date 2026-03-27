@@ -1,19 +1,92 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    pub server_url: String,
-    pub max_tokens: u32,
+    #[serde(default)]
+    pub llama_server_path: String,
+    #[serde(default)]
+    pub model_path: String,
+    #[serde(default = "default_host")]
+    pub host: String,
+    #[serde(default = "default_port")]
+    pub port: u16,
+    #[serde(default = "default_context_size")]
+    pub context_size: u32,
+    #[serde(default = "default_threads")]
+    pub threads: u32,
+    #[serde(default)]
+    pub gpu_layers: u32,
+    #[serde(default = "default_temperature")]
     pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+    #[serde(default = "default_download_folder")]
+    pub download_folder: String,
+    #[serde(default)]
+    pub recent_model_paths: Vec<String>,
+    #[serde(default)]
+    pub recent_server_paths: Vec<String>,
+    #[serde(default)]
+    pub recent_model_urls: Vec<String>,
+}
+
+fn default_host() -> String {
+    "127.0.0.1".to_string()
+}
+fn default_port() -> u16 {
+    8080
+}
+fn default_context_size() -> u32 {
+    4096
+}
+fn default_threads() -> u32 {
+    let cpus = std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4);
+    (cpus / 2).max(2)
+}
+fn default_temperature() -> f32 {
+    0.7
+}
+fn default_max_tokens() -> u32 {
+    512
+}
+fn default_download_folder() -> String {
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        return std::path::PathBuf::from(profile)
+            .join("Downloads")
+            .join("LLMModels")
+            .to_string_lossy()
+            .into_owned();
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        return std::path::PathBuf::from(home)
+            .join("Downloads")
+            .join("LLMModels")
+            .to_string_lossy()
+            .into_owned();
+    }
+    "LLMModels".to_string()
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            server_url: "http://127.0.0.1:8080".to_string(),
-            max_tokens: 512,
-            temperature: 0.7,
+            llama_server_path: String::new(),
+            model_path: String::new(),
+            host: default_host(),
+            port: default_port(),
+            context_size: default_context_size(),
+            threads: default_threads(),
+            temperature: default_temperature(),
+            max_tokens: default_max_tokens(),
+            gpu_layers: 0,
+            download_folder: default_download_folder(),
+            recent_model_paths: Vec::new(),
+            recent_server_paths: Vec::new(),
+            recent_model_urls: Vec::new(),
         }
     }
 }
@@ -23,8 +96,22 @@ impl Default for Settings {
 pub struct Preset {
     pub id: String,
     pub name: String,
-    pub system_prompt: String,
-    pub created_at: String,
+    #[serde(default)]
+    pub model_path: String,
+    #[serde(default = "default_host")]
+    pub host: String,
+    #[serde(default = "default_port")]
+    pub port: u16,
+    #[serde(default = "default_context_size")]
+    pub context_size: u32,
+    #[serde(default = "default_threads")]
+    pub threads: u32,
+    #[serde(default)]
+    pub gpu_layers: u32,
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,6 +220,14 @@ pub struct ChatStreamEvent {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedModelDownload {
+    pub download_url: String,
+    pub suggested_file_name: String,
+    pub request_headers: Option<HashMap<String, String>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -156,21 +251,33 @@ mod tests {
 
     #[test]
     fn settings_serializes_with_camel_case_fields() {
-        let value = to_value(Settings {
-            server_url: "http://localhost:8080".to_string(),
-            max_tokens: 1024,
+        let settings = Settings {
+            llama_server_path: "/usr/bin/llama-server".to_string(),
+            model_path: "/models/test.gguf".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 8080,
+            context_size: 4096,
+            threads: 4,
+            gpu_layers: 0,
             temperature: 0.25,
-        })
-        .unwrap();
+            max_tokens: 1024,
+            download_folder: "/downloads".to_string(),
+            recent_model_paths: vec![],
+            recent_server_paths: vec![],
+            recent_model_urls: vec![],
+        };
+        let value = to_value(&settings).unwrap();
 
-        assert_eq!(
-            value,
-            json!({
-                "serverUrl": "http://localhost:8080",
-                "maxTokens": 1024,
-                "temperature": 0.25,
-            })
-        );
+        assert_eq!(value["llamaServerPath"], json!("/usr/bin/llama-server"));
+        assert_eq!(value["modelPath"], json!("/models/test.gguf"));
+        assert_eq!(value["host"], json!("127.0.0.1"));
+        assert_eq!(value["port"], json!(8080));
+        assert_eq!(value["contextSize"], json!(4096));
+        assert_eq!(value["threads"], json!(4));
+        assert_eq!(value["gpuLayers"], json!(0));
+        assert_eq!(value["temperature"], json!(0.25));
+        assert_eq!(value["maxTokens"], json!(1024));
+        assert_eq!(value["downloadFolder"], json!("/downloads"));
     }
 
     #[test]
