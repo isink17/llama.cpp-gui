@@ -10,7 +10,7 @@ name = "llamacppdesk_tauri"
 crate-type = ["rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2" }
 
 [dependencies]
 tauri = { version = "2", features = [] }
