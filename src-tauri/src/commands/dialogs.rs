@@ -19,15 +19,8 @@ pub fn pick_file(
 }
 
 #[tauri::command]
-pub fn pick_folder(
-    app: tauri::AppHandle,
-    title: String,
-) -> Result<Option<String>, String> {
-    let folder_path = app
-        .dialog()
-        .file()
-        .set_title(&title)
-        .blocking_pick_folder();
+pub fn pick_folder(app: tauri::AppHandle, title: String) -> Result<Option<String>, String> {
+    let folder_path = app.dialog().file().set_title(&title).blocking_pick_folder();
 
     Ok(folder_path.map(|fp| fp.to_string()))
 }

@@ -81,9 +81,7 @@ impl ModelResolverService {
 
     pub fn list_ollama_tags(&self, input: &str) -> Result<Vec<String>, String> {
         let repo_path = parse_ollama_repo_path(input);
-        let url = format!(
-            "https://registry.ollama.ai/v2/{repo_path}/tags/list"
-        );
+        let url = format!("https://registry.ollama.ai/v2/{repo_path}/tags/list");
         let response = self
             .client
             .get(&url)
@@ -160,9 +158,8 @@ impl ModelResolverService {
             pick_best_gguf_file(&gguf_files)
         };
 
-        let download_url = format!(
-            "https://huggingface.co/{repo_id}/resolve/main/{file_name}?download=true"
-        );
+        let download_url =
+            format!("https://huggingface.co/{repo_id}/resolve/main/{file_name}?download=true");
         let headers = build_hf_auth_headers(hf_token);
 
         Ok(ResolvedModelDownload {
@@ -175,9 +172,7 @@ impl ModelResolverService {
     fn resolve_ollama(&self, input: &str) -> Result<ResolvedModelDownload, String> {
         let (repo_path, tag) = parse_ollama_input(input);
 
-        let manifest_url = format!(
-            "https://registry.ollama.ai/v2/{repo_path}/manifests/{tag}"
-        );
+        let manifest_url = format!("https://registry.ollama.ai/v2/{repo_path}/manifests/{tag}");
         let response = self
             .client
             .get(&manifest_url)
@@ -185,10 +180,7 @@ impl ModelResolverService {
                 "Accept",
                 "application/vnd.docker.distribution.manifest.v2+json",
             )
-            .header(
-                "Accept",
-                "application/vnd.oci.image.manifest.v1+json",
-            )
+            .header("Accept", "application/vnd.oci.image.manifest.v1+json")
             .send()
             .map_err(|e| format!("failed to fetch Ollama manifest: {e}"))?;
 
@@ -210,15 +202,11 @@ impl ModelResolverService {
 
         let model_layer = layers
             .iter()
-            .find(|layer| {
-                layer.media_type.contains("model") || layer.media_type.contains("gguf")
-            })
+            .find(|layer| layer.media_type.contains("model") || layer.media_type.contains("gguf"))
             .unwrap_or(&layers[0]);
 
         let digest = &model_layer.digest;
-        let download_url = format!(
-            "https://registry.ollama.ai/v2/{repo_path}/blobs/{digest}"
-        );
+        let download_url = format!("https://registry.ollama.ai/v2/{repo_path}/blobs/{digest}");
 
         let digest_prefix = digest
             .split(':')
@@ -570,10 +558,7 @@ mod tests {
 
     #[test]
     fn pick_best_gguf_file_falls_back_to_first_when_tied() {
-        let files = vec![
-            "alpha.gguf".to_string(),
-            "beta.gguf".to_string(),
-        ];
+        let files = vec!["alpha.gguf".to_string(), "beta.gguf".to_string()];
         // Both score 0, max_by_key picks last of ties; both are 0 so first max wins
         let result = pick_best_gguf_file(&files);
         assert!(result == "alpha.gguf" || result == "beta.gguf");
@@ -649,7 +634,11 @@ mod tests {
         assert_eq!(result.suggested_file_name, "llama-2-7b.Q4_K_M.gguf");
         assert!(result.request_headers.is_some());
         assert_eq!(
-            result.request_headers.unwrap().get("Authorization").unwrap(),
+            result
+                .request_headers
+                .unwrap()
+                .get("Authorization")
+                .unwrap(),
             "Bearer hf_token123"
         );
     }
