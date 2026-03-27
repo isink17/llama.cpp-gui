@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload smoke diagnostics
         if: steps.smoke.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-checks-diagnostics
           path: smoke-checks.log
@@ -180,7 +180,7 @@ jobs:
 
       - name: Upload smoke diagnostics (Unix)
         if: runner.os != 'Windows' && steps.smoke_unix.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-checks-diagnostics-${{ matrix.os }}
           path: smoke-checks-${{ matrix.os }}.log
@@ -202,7 +202,7 @@ jobs:
 
       - name: Upload smoke diagnostics (Windows)
         if: runner.os == 'Windows' && steps.smoke_windows.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-checks-diagnostics-${{ matrix.os }}
           path: smoke-checks-${{ matrix.os }}.log
