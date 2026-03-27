@@ -381,6 +381,26 @@ pre {
   color: #94a3b8;
 }
 
+.chat-message-block {
+  position: relative;
+}
+
+.chat-message-block pre {
+  margin-bottom: 0;
+}
+
+.chat-message-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+button.small {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
 @media (max-width: 900px) {
   .chat-card {
     grid-column: span 1;

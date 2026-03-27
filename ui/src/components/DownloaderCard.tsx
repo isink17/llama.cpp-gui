@@ -18,6 +18,48 @@ export type DownloaderCardProps = {
   onDownloadPathChange: (value: string) => void;
   onStartDownload: () => void;
   onCancelDownload: (downloadId: string) => void;
+  downloadSource: string;
+  hfToken: string;
+  hfFiles: string[];
+  ollamaTags: string[];
+  selectedHfFile: string;
+  selectedOllamaTag: string;
+  downloadFileName: string;
+  onDownloadSourceChange: (source: string) => void;
+  onHfTokenChange: (token: string) => void;
+  onLoadHfFiles: () => void;
+  onLoadOllamaTags: () => void;
+  onSelectedHfFileChange: (file: string) => void;
+  onSelectedOllamaTagChange: (tag: string) => void;
+  onDownloadFileNameChange: (name: string) => void;
+};
+
+const DOWNLOAD_SOURCES = [
+  { value: 'direct', label: 'Direct URL' },
+  { value: 'huggingface', label: 'Hugging Face' },
+  { value: 'ollama', label: 'Ollama Library' },
+];
+
+const getInputLabel = (source: string) => {
+  switch (source) {
+    case 'huggingface':
+      return 'Repository (e.g. TheBloke/Llama-2-7B-GGUF)';
+    case 'ollama':
+      return 'Model name (e.g. llama2)';
+    default:
+      return 'Source URL';
+  }
+};
+
+const getInputPlaceholder = (source: string) => {
+  switch (source) {
+    case 'huggingface':
+      return 'owner/repo';
+    case 'ollama':
+      return 'model-name';
+    default:
+      return 'https://...';
+  }
 };
 
 const classifyFailureMessage = (message: string): FailureKind => {
@@ -79,6 +121,20 @@ export function DownloaderCard({
   onDownloadPathChange,
   onStartDownload,
   onCancelDownload,
+  downloadSource,
+  hfToken,
+  hfFiles,
+  ollamaTags,
+  selectedHfFile,
+  selectedOllamaTag,
+  downloadFileName,
+  onDownloadSourceChange,
+  onHfTokenChange,
+  onLoadHfFiles,
+  onLoadOllamaTags,
+  onSelectedHfFileChange,
+  onSelectedOllamaTagChange,
+  onDownloadFileNameChange,
 }: DownloaderCardProps) {
   return (
     <article className="card">
@@ -90,8 +146,92 @@ export function DownloaderCard({
         <span className="hint">State updates refresh automatically</span>
       </div>
       <label>
-        Source URL
-        <input value={downloadUrl} onChange={(e) => onDownloadUrlChange(e.target.value)} />
+        Download source
+        <select
+          value={downloadSource}
+          onChange={(e) => onDownloadSourceChange(e.target.value)}
+        >
+          {DOWNLOAD_SOURCES.map((src) => (
+            <option key={src.value} value={src.value}>
+              {src.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        {getInputLabel(downloadSource)}
+        <input
+          value={downloadUrl}
+          onChange={(e) => onDownloadUrlChange(e.target.value)}
+          placeholder={getInputPlaceholder(downloadSource)}
+        />
+      </label>
+      {downloadSource === 'huggingface' && (
+        <>
+          <label>
+            HF token (optional)
+            <input
+              type="password"
+              value={hfToken}
+              onChange={(e) => onHfTokenChange(e.target.value)}
+              placeholder="hf_..."
+            />
+          </label>
+          <div className="row">
+            <button type="button" onClick={onLoadHfFiles}>
+              Load files
+            </button>
+          </div>
+          {hfFiles.length > 0 && (
+            <label>
+              Select file
+              <select
+                value={selectedHfFile}
+                onChange={(e) => onSelectedHfFileChange(e.target.value)}
+              >
+                <option value="">-- choose a file --</option>
+                {hfFiles.map((file) => (
+                  <option key={file} value={file}>
+                    {file}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      )}
+      {downloadSource === 'ollama' && (
+        <>
+          <div className="row">
+            <button type="button" onClick={onLoadOllamaTags}>
+              Load tags
+            </button>
+          </div>
+          {ollamaTags.length > 0 && (
+            <label>
+              Select tag
+              <select
+                value={selectedOllamaTag}
+                onChange={(e) => onSelectedOllamaTagChange(e.target.value)}
+              >
+                <option value="">-- choose a tag --</option>
+                {ollamaTags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      )}
+      <label>
+        Filename override (optional)
+        <input
+          value={downloadFileName}
+          onChange={(e) => onDownloadFileNameChange(e.target.value)}
+          placeholder="Leave blank for suggested filename"
+        />
       </label>
       <label>
         Destination path

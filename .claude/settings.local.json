@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc:*)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|XXX\\\\|WinUI\\\\|old app\" src-tauri/ ui/ --include=*.rs --include=*.tsx --include=*.ts)",
+      "Bash(wc -l \"/c/Users/Ivan/Documents/Playground/LlamaCppDesk/src-tauri/src\"/*/*.rs \"/c/Users/Ivan/Documents/Playground/LlamaCppDesk/src-tauri/src\"/*.rs)",
+      "Bash(wc:*)",
+      "Bash(cargo check:*)",
+      "Bash(echo LIB=$LIB)",
+      "Bash(echo INCLUDE=$INCLUDE)",
+      "Read(//c/Program Files \\(x86\\)/Windows Kits/10/Lib//**)",
+      "Bash(npx tsc:*)",
+      "Bash(cargo build:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(grep -rn \"Legacy\\\\|WinUI app\\\\|Old app\\\\|C# app\" C:UsersIvanDocumentsPlaygroundLlamaCppDesk --include=*.md)",
+      "Bash(grep -n \"aria-\\\\|role=\" ui/src/components/*.tsx ui/src/App.tsx)"
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import { type KeyboardEvent, useState } from 'react';
 import type { ChatStreamStatus } from '../lib/tauri/api';
 
 type FailureKind = 'timeout' | 'unavailable' | 'failure';
@@ -20,6 +21,10 @@ export type ChatCardProps = {
   onChatPromptChange: (value: string) => void;
   onStartChat: () => void;
   onCancelChat: () => void;
+  onUseAsPrompt?: (text: string) => void;
+  onSendPrompt: () => void;
+  onNavigateHistory: (direction: number) => void;
+  onCancelGeneration: () => void;
 };
 
 const classifyFailureMessage = (message: string): FailureKind => {
@@ -95,7 +100,44 @@ export function ChatCard({
   onChatPromptChange,
   onStartChat,
   onCancelChat,
+  onUseAsPrompt,
+  onSendPrompt,
+  onNavigateHistory,
+  onCancelGeneration,
 }: ChatCardProps) {
+  const [copiedFlag, setCopiedFlag] = useState(false);
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSendPrompt();
+      return;
+    }
+
+    if (e.key === 'ArrowUp' && e.ctrlKey) {
+      e.preventDefault();
+      onNavigateHistory(-1);
+      return;
+    }
+
+    if (e.key === 'ArrowDown' && e.ctrlKey) {
+      e.preventDefault();
+      onNavigateHistory(1);
+      return;
+    }
+
+    if (e.key === 'Escape' && canCancelChat) {
+      e.preventDefault();
+      onCancelGeneration();
+    }
+  };
+
+  const handleCopy = (text: string) => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedFlag(true);
+      setTimeout(() => setCopiedFlag(false), 1500);
+    });
+  };
   const activeStream = chatStatuses.find((item) => item.state === 'streaming');
   const chatSummaryLabel = activeStream
     ? `Streaming ${activeStream.model}`
@@ -126,6 +168,7 @@ export function ChatCard({
         <textarea
           value={chatPrompt}
           onChange={(e) => onChatPromptChange(e.target.value)}
+          onKeyDown={handlePromptKeyDown}
           rows={3}
         />
       </label>
@@ -182,7 +225,25 @@ export function ChatCard({
           )}
         </div>
       </div>
-      <pre>{chatLog.join('')}</pre>
+      {chatLog.length > 0 && (
+        <div className="chat-message-block">
+          <pre>{chatLog.join('')}</pre>
+          <div className="chat-message-actions">
+            <button
+              className="secondary small"
+              onClick={() => handleCopy(chatLog.join(''))}
+            >
+              {copiedFlag ? 'Copied!' : 'Copy'}
+            </button>
+            <button
+              className="secondary small"
+              onClick={() => onUseAsPrompt?.(chatLog.join(''))}
+            >
+              Use as prompt
+            </button>
+          </div>
+        </div>
+      )}
     </article>
   );
 }

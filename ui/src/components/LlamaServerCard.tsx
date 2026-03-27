@@ -16,15 +16,12 @@ export type LlamaServerCardProps = {
   refreshIssue: string | null;
   processStatus: LlamaProcessStatus;
   processHealth: LlamaServerHealthStatus | null;
-  processPath: string;
-  processArgs: string;
+  serverUrl: string;
   isCheckingHealth: boolean;
   isProcessTransitionBusy: boolean;
   isStartingProcess: boolean;
   isStoppingProcess: boolean;
   isClearingLogs: boolean;
-  onProcessPathChange: (value: string) => void;
-  onProcessArgsChange: (value: string) => void;
   onCheckHealth: () => void;
   onStartProcess: () => void;
   onStopProcess: () => void;
@@ -135,15 +132,12 @@ export function LlamaServerCard({
   refreshIssue,
   processStatus,
   processHealth,
-  processPath,
-  processArgs,
+  serverUrl,
   isCheckingHealth,
   isProcessTransitionBusy,
   isStartingProcess,
   isStoppingProcess,
   isClearingLogs,
-  onProcessPathChange,
-  onProcessArgsChange,
   onCheckHealth,
   onStartProcess,
   onStopProcess,
@@ -229,20 +223,7 @@ export function LlamaServerCard({
           </div>
         ) : null}
       </div>
-      <label>
-        Executable path
-        <input
-          value={processPath}
-          onChange={(e) => onProcessPathChange(e.target.value)}
-        />
-      </label>
-      <label>
-        Args
-        <input
-          value={processArgs}
-          onChange={(e) => onProcessArgsChange(e.target.value)}
-        />
-      </label>
+      <div className="hint">Server: {serverUrl}</div>
       <div className="row">
         <button onClick={() => void onStartProcess()} disabled={isProcessTransitionBusy}>
           {isStartingProcess ? 'Starting...' : 'Start'}

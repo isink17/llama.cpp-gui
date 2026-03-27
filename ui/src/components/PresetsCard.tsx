@@ -1,24 +1,20 @@
-import type { Preset } from '../lib/tauri/api';
+import type { Preset, Settings } from '../lib/tauri/api';
 
 type PresetDraft = Preset;
 
 type PresetsCardProps = {
   presets: Preset[];
   presetDraft: PresetDraft;
+  settings: Settings;
   onNewPreset: () => void;
   onResetPresetDraft: () => void;
   onPresetDraftChange: (preset: PresetDraft) => void;
-  onSavePreset: () => void;
+  onSavePresetFromSettings: () => void;
+  onApplyPreset: (preset: Preset) => void;
   onEditPreset: (preset: Preset) => void;
   onDeletePreset: (presetId: string) => void;
-  formatTimestamp?: (value: string) => string;
   isSaving?: boolean;
   isDeletingPreset?: (presetId: string) => boolean;
-};
-
-const defaultFormatTimestamp = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
 
 export function PresetsCard({
@@ -27,10 +23,10 @@ export function PresetsCard({
   onNewPreset,
   onResetPresetDraft,
   onPresetDraftChange,
-  onSavePreset,
+  onSavePresetFromSettings,
+  onApplyPreset,
   onEditPreset,
   onDeletePreset,
-  formatTimestamp = defaultFormatTimestamp,
   isSaving = false,
   isDeletingPreset = () => false,
 }: PresetsCardProps) {
@@ -43,40 +39,21 @@ export function PresetsCard({
         </button>
       </div>
       <label>
-        Name
+        Preset name
         <input
           value={presetDraft.name}
           onChange={(e) =>
             onPresetDraftChange({ ...presetDraft, name: e.target.value })
           }
-        />
-      </label>
-      <label>
-        Preset ID
-        <input
-          value={presetDraft.id}
-          onChange={(e) =>
-            onPresetDraftChange({ ...presetDraft, id: e.target.value })
-          }
-          placeholder="Generated automatically for new presets"
-        />
-      </label>
-      <label>
-        System prompt
-        <textarea
-          value={presetDraft.systemPrompt}
-          onChange={(e) =>
-            onPresetDraftChange({ ...presetDraft, systemPrompt: e.target.value })
-          }
-          rows={4}
+          placeholder="Name for this preset"
         />
       </label>
       <div className="row">
-        <button onClick={onSavePreset} disabled={isSaving}>
-          {isSaving ? 'Saving...' : 'Save preset'}
+        <button onClick={onSavePresetFromSettings} disabled={isSaving}>
+          {isSaving ? 'Saving...' : 'Save current settings as preset'}
         </button>
         <button className="secondary" onClick={onResetPresetDraft}>
-          Clear form
+          Clear
         </button>
       </div>
       <div className="panel">
@@ -93,10 +70,21 @@ export function PresetsCard({
                     <strong>{preset.name}</strong>
                     <div className="hint">{preset.id}</div>
                   </div>
-                  <div className="hint">{formatTimestamp(preset.createdAt)}</div>
                 </div>
-                <p>{preset.systemPrompt || 'No system prompt stored.'}</p>
+                <div className="hint">
+                  {preset.modelPath || 'No model path'} &middot;{' '}
+                  {preset.host}:{preset.port} &middot; ctx={preset.contextSize}{' '}
+                  t={preset.threads} gpu={preset.gpuLayers} &middot; temp=
+                  {preset.temperature} max={preset.maxTokens}
+                </div>
                 <div className="row">
+                  <button
+                    className="secondary"
+                    onClick={() => onApplyPreset(preset)}
+                    disabled={isDeletingPreset(preset.id)}
+                  >
+                    Apply
+                  </button>
                   <button
                     className="secondary"
                     onClick={() => onEditPreset(preset)}

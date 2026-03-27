@@ -89,8 +89,16 @@ pub fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 fn validate_settings(settings: &Settings) -> Result<(), String> {
-    if settings.server_url.trim().is_empty() {
-        return Err("server_url cannot be empty".to_string());
+    if settings.port == 0 {
+        return Err("port must be between 1 and 65535".to_string());
+    }
+
+    if settings.context_size < 256 {
+        return Err("context_size must be at least 256".to_string());
+    }
+
+    if settings.threads == 0 {
+        return Err("threads must be at least 1".to_string());
     }
 
     if settings.max_tokens == 0 || settings.max_tokens > MAX_TOKENS_LIMIT {
@@ -126,8 +134,16 @@ fn validate_preset(preset: &Preset) -> Result<(), String> {
         return Err("preset.name cannot be empty".to_string());
     }
 
-    if preset.created_at.trim().is_empty() {
-        return Err("preset.created_at cannot be empty".to_string());
+    if preset.max_tokens == 0 || preset.max_tokens > MAX_TOKENS_LIMIT {
+        return Err(format!(
+            "preset.max_tokens must be in range 1..={MAX_TOKENS_LIMIT}"
+        ));
+    }
+
+    if !(0.0..=MAX_TEMPERATURE).contains(&preset.temperature) {
+        return Err(format!(
+            "preset.temperature must be in range 0.0..={MAX_TEMPERATURE}"
+        ));
     }
 
     Ok(())
@@ -160,53 +176,86 @@ mod tests {
     };
     use crate::core::models::{HistoryEntry, Preset, Settings};
 
-    #[test]
-    fn accepts_valid_settings() {
-        let settings = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
+    fn valid_settings() -> Settings {
+        Settings {
+            port: 8080,
+            context_size: 4096,
+            threads: 4,
             max_tokens: 1024,
             temperature: 0.8,
-        };
-        assert!(validate_settings(&settings).is_ok());
+            ..Settings::default()
+        }
+    }
+
+    fn valid_preset() -> Preset {
+        Preset {
+            id: "p1".to_string(),
+            name: "Test".to_string(),
+            model_path: String::new(),
+            host: "127.0.0.1".to_string(),
+            port: 8080,
+            context_size: 4096,
+            threads: 4,
+            gpu_layers: 0,
+            temperature: 0.7,
+            max_tokens: 512,
+        }
+    }
+
+    #[test]
+    fn accepts_valid_settings() {
+        assert!(validate_settings(&valid_settings()).is_ok());
     }
 
     #[test]
     fn rejects_invalid_settings() {
-        let empty_url = Settings {
-            server_url: "".to_string(),
-            max_tokens: 1024,
-            temperature: 0.8,
-        };
-        assert!(validate_settings(&empty_url).is_err());
-
         let bad_tokens = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
             max_tokens: MAX_TOKENS_LIMIT + 1,
-            temperature: 0.8,
+            ..valid_settings()
         };
         assert!(validate_settings(&bad_tokens).is_err());
 
         let bad_temp = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
-            max_tokens: 512,
             temperature: MAX_TEMPERATURE + 0.1,
+            ..valid_settings()
         };
         assert!(validate_settings(&bad_temp).is_err());
+
+        let bad_port = Settings {
+            port: 0,
+            ..valid_settings()
+        };
+        assert!(validate_settings(&bad_port).is_err());
+
+        let bad_context = Settings {
+            context_size: 100,
+            ..valid_settings()
+        };
+        assert!(validate_settings(&bad_context).is_err());
+
+        let bad_threads = Settings {
+            threads: 0,
+            ..valid_settings()
+        };
+        assert!(validate_settings(&bad_threads).is_err());
     }
 
     #[test]
     fn accepts_settings_boundary_values() {
         let min_values = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
             max_tokens: 1,
             temperature: 0.0,
+            port: 1,
+            context_size: 256,
+            threads: 1,
+            ..valid_settings()
         };
         assert!(validate_settings(&min_values).is_ok());
 
         let max_values = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
             max_tokens: MAX_TOKENS_LIMIT,
             temperature: MAX_TEMPERATURE,
+            ..valid_settings()
         };
         assert!(validate_settings(&max_values).is_ok());
     }
@@ -214,36 +263,49 @@ mod tests {
     #[test]
     fn rejects_settings_outside_boundary_values() {
         let zero_tokens = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
             max_tokens: 0,
-            temperature: 0.8,
+            ..valid_settings()
         };
         assert!(validate_settings(&zero_tokens).is_err());
 
         let below_zero_temp = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
-            max_tokens: 512,
             temperature: -0.1,
+            ..valid_settings()
         };
         assert!(validate_settings(&below_zero_temp).is_err());
 
         let above_max_temp = Settings {
-            server_url: "http://127.0.0.1:8080".to_string(),
-            max_tokens: 512,
             temperature: MAX_TEMPERATURE + 0.01,
+            ..valid_settings()
         };
         assert!(validate_settings(&above_max_temp).is_err());
     }
 
     #[test]
     fn rejects_invalid_preset() {
-        let preset = Preset {
+        let empty_id = Preset {
             id: "".to_string(),
-            name: "Preset".to_string(),
-            system_prompt: "You are helpful.".to_string(),
-            created_at: "2026-03-26T12:00:00Z".to_string(),
+            ..valid_preset()
         };
-        assert!(validate_preset(&preset).is_err());
+        assert!(validate_preset(&empty_id).is_err());
+
+        let empty_name = Preset {
+            name: "".to_string(),
+            ..valid_preset()
+        };
+        assert!(validate_preset(&empty_name).is_err());
+
+        let bad_tokens = Preset {
+            max_tokens: 0,
+            ..valid_preset()
+        };
+        assert!(validate_preset(&bad_tokens).is_err());
+
+        let bad_temp = Preset {
+            temperature: MAX_TEMPERATURE + 0.1,
+            ..valid_preset()
+        };
+        assert!(validate_preset(&bad_temp).is_err());
     }
 
     #[test]

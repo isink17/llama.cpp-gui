@@ -2,9 +2,19 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type Settings = {
-  serverUrl: string;
-  maxTokens: number;
+  llamaServerPath: string;
+  modelPath: string;
+  host: string;
+  port: number;
+  contextSize: number;
+  threads: number;
+  gpuLayers: number;
   temperature: number;
+  maxTokens: number;
+  downloadFolder: string;
+  recentModelPaths: string[];
+  recentServerPaths: string[];
+  recentModelUrls: string[];
 };
 
 export type LlamaProcessStatus = {
@@ -23,8 +33,14 @@ export type LlamaServerHealthStatus = {
 export type Preset = {
   id: string;
   name: string;
-  systemPrompt: string;
-  createdAt: string;
+  modelPath: string;
+  host: string;
+  port: number;
+  contextSize: number;
+  threads: number;
+  gpuLayers: number;
+  temperature: number;
+  maxTokens: number;
 };
 
 export type HistoryRole = 'system' | 'user' | 'assistant';
@@ -183,6 +199,14 @@ export const checkLlamaServerHealth = (request: CheckLlamaServerHealthRequest) =
 
 export const getLlamaServerHealth = checkLlamaServerHealth;
 
+export type WaitForServerReadyRequest = {
+  serverUrl: string;
+  timeoutSecs?: number | null;
+};
+
+export const waitForServerReady = (request: WaitForServerReadyRequest) =>
+  invoke<LlamaServerHealthStatus>('wait_for_server_ready', request);
+
 export const getDownloadStatuses = () =>
   invoke<DownloadStatus[]>('get_download_statuses');
 
@@ -200,3 +224,48 @@ export const startChatStream = (request: StartChatStreamRequest) =>
 
 export const cancelChatStream = (request: CancelChatStreamRequest) =>
   invoke<ChatStreamStatus>('cancel_chat_stream', request);
+
+export type ResolvedModelDownload = {
+  downloadUrl: string;
+  suggestedFileName: string;
+  requestHeaders?: Record<string, string> | null;
+};
+
+export type ResolveModelReferenceRequest = {
+  source: string;
+  input: string;
+  hfToken?: string | null;
+};
+
+export type ListHuggingFaceFilesRequest = {
+  input: string;
+  hfToken?: string | null;
+};
+
+export type ListOllamaTagsRequest = {
+  input: string;
+};
+
+export const resolveModelReference = (request: ResolveModelReferenceRequest) =>
+  invoke<ResolvedModelDownload>('resolve_model_reference', request);
+
+export const listHuggingFaceFiles = (request: ListHuggingFaceFilesRequest) =>
+  invoke<string[]>('list_hugging_face_files', request);
+
+export const listOllamaTags = (request: ListOllamaTagsRequest) =>
+  invoke<string[]>('list_ollama_tags', request);
+
+export type PickFileRequest = {
+  title: string;
+  extensions: string[];
+};
+
+export type PickFolderRequest = {
+  title: string;
+};
+
+export const pickFile = (request: PickFileRequest) =>
+  invoke<string | null>('pick_file', request);
+
+export const pickFolder = (request: PickFolderRequest) =>
+  invoke<string | null>('pick_folder', request);

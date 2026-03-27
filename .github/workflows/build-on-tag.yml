@@ -115,12 +115,21 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore LlamaCppDesk.csproj
+        shell: pwsh
+        run: >
+          dotnet restore LlamaCppDesk.csproj
+          ${{ !matrix.publish && '-p:EnableWindowsTargeting=true' || format('-r {0} -p:PublishReadyToRun=true', env.WINDOWS_RUNTIME_IDENTIFIER) }}
 
       - name: Build
         if: matrix.publish
         shell: pwsh
-        run: dotnet build LlamaCppDesk.csproj -c $env:WINDOWS_CONFIGURATION -p:Platform=x64 --no-restore
+        run: >
+          dotnet build LlamaCppDesk.csproj
+          -c $env:WINDOWS_CONFIGURATION
+          -r $env:WINDOWS_RUNTIME_IDENTIFIER
+          -p:Platform=x64
+          -p:PublishReadyToRun=true
+          --no-restore
 
       - name: Publish EXE
         if: matrix.publish
