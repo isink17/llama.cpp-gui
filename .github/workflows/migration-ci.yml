@@ -105,7 +105,7 @@ jobs:
         run: cargo test --locked --no-run
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit --locked
 
       - name: Run cargo audit
         working-directory: src-tauri
