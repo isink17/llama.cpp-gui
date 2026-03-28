@@ -16,7 +16,7 @@ impl ProcessManager {
     pub fn new(max_logs: usize) -> Self {
         Self {
             child: None,
-            logs: Arc::new(Mutex::new(VecDeque::new())),
+            logs: Arc::new(Mutex::new(VecDeque::with_capacity(max_logs))),
             max_logs,
             last_exit_code: None,
         }

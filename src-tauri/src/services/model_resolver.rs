@@ -2,10 +2,18 @@ use crate::core::models::ResolvedModelDownload;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+struct CacheEntry<T> {
+    data: T,
+    expires_at: Instant,
+}
 
 pub struct ModelResolverService {
     client: Client,
+    ollama_cache: Mutex<HashMap<String, CacheEntry<Vec<String>>>>,
+    hf_cache: Mutex<HashMap<String, CacheEntry<Vec<String>>>>,
 }
 
 #[derive(Deserialize)]
@@ -48,7 +56,11 @@ impl ModelResolverService {
             .timeout(Duration::from_secs(30))
             .build()
             .map_err(|e| format!("failed to build HTTP client for model resolver: {e}"))?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            ollama_cache: Mutex::new(HashMap::new()),
+            hf_cache: Mutex::new(HashMap::new()),
+        })
     }
 
     pub fn resolve(
@@ -81,6 +93,16 @@ impl ModelResolverService {
 
     pub fn list_ollama_tags(&self, input: &str) -> Result<Vec<String>, String> {
         let repo_path = parse_ollama_repo_path(input);
+
+        // Check cache first
+        if let Ok(cache) = self.ollama_cache.lock() {
+            if let Some(entry) = cache.get(&repo_path) {
+                if entry.expires_at > Instant::now() {
+                    return Ok(entry.data.clone());
+                }
+            }
+        }
+
         let url = format!("https://registry.ollama.ai/v2/{repo_path}/tags/list");
         let response = self
             .client
@@ -99,12 +121,25 @@ impl ModelResolverService {
             .json()
             .map_err(|e| format!("failed to parse Ollama tags response: {e}"))?;
 
-        Ok(tag_list
+        let tags: Vec<String> = tag_list
             .tags
             .unwrap_or_default()
             .into_iter()
             .map(|t| t.name)
-            .collect())
+            .collect();
+
+        // Store in cache with 5-minute TTL
+        if let Ok(mut cache) = self.ollama_cache.lock() {
+            cache.insert(
+                repo_path,
+                CacheEntry {
+                    data: tags.clone(),
+                    expires_at: Instant::now() + Duration::from_secs(300),
+                },
+            );
+        }
+
+        Ok(tags)
     }
 
     fn resolve_direct_url(&self, input: &str) -> Result<ResolvedModelDownload, String> {
@@ -230,6 +265,15 @@ impl ModelResolverService {
         repo_id: &str,
         token: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        // Check cache first
+        if let Ok(cache) = self.hf_cache.lock() {
+            if let Some(entry) = cache.get(repo_id) {
+                if entry.expires_at > Instant::now() {
+                    return Ok(entry.data.clone());
+                }
+            }
+        }
+
         let url = format!("https://huggingface.co/api/models/{repo_id}");
         let mut request = self.client.get(&url);
         if let Some(token) = token {
@@ -238,7 +282,7 @@ impl ModelResolverService {
 
         let response = request
             .send()
-            .map_err(|e| format!("failed to fetch Hugging Face model info: {e}"))?;
+            .map_err(|e| sanitize_error(&format!("failed to fetch Hugging Face model info: {e}")))?;
 
         if !response.status().is_success() {
             return Err(format!(
@@ -249,14 +293,27 @@ impl ModelResolverService {
 
         let model: HuggingFaceModel = response
             .json()
-            .map_err(|e| format!("failed to parse Hugging Face model response: {e}"))?;
+            .map_err(|e| sanitize_error(&format!("failed to parse Hugging Face model response: {e}")))?;
 
-        Ok(model
+        let siblings: Vec<String> = model
             .siblings
             .unwrap_or_default()
             .into_iter()
             .map(|s| s.rfilename)
-            .collect())
+            .collect();
+
+        // Store in cache with 5-minute TTL
+        if let Ok(mut cache) = self.hf_cache.lock() {
+            cache.insert(
+                repo_id.to_string(),
+                CacheEntry {
+                    data: siblings.clone(),
+                    expires_at: Instant::now() + Duration::from_secs(300),
+                },
+            );
+        }
+
+        Ok(siblings)
     }
 }
 
@@ -359,6 +416,21 @@ fn build_hf_auth_headers(token: Option<&str>) -> Option<HashMap<String, String>>
         headers.insert("Authorization".to_string(), format!("Bearer {t}"));
         headers
     })
+}
+
+/// Masks Bearer tokens in error messages to prevent credential leakage.
+fn sanitize_error(msg: &str) -> String {
+    if let Some(idx) = msg.find("Bearer ") {
+        let mut sanitized = msg[..idx + 7].to_string();
+        sanitized.push_str("***");
+        // Find the end of the token and append the rest
+        if let Some(end) = msg[idx + 7..].find(|c: char| c.is_whitespace() || c == '"') {
+            sanitized.push_str(&msg[idx + 7 + end..]);
+        }
+        sanitized
+    } else {
+        msg.to_string()
+    }
 }
 
 /// Scores a .gguf filename based on quantization quality and keyword bonuses.
@@ -614,6 +686,28 @@ mod tests {
             .resolve("Unknown Source", "something", None)
             .unwrap_err();
         assert!(err.contains("unknown source"));
+    }
+
+    #[test]
+    fn sanitize_error_masks_bearer_token() {
+        let msg = "request failed: Bearer hf_abc123XYZ in header";
+        let sanitized = sanitize_error(msg);
+        assert_eq!(sanitized, "request failed: Bearer *** in header");
+        assert!(!sanitized.contains("hf_abc123XYZ"));
+    }
+
+    #[test]
+    fn sanitize_error_no_bearer_passthrough() {
+        let msg = "some normal error message";
+        assert_eq!(sanitize_error(msg), msg);
+    }
+
+    #[test]
+    fn sanitize_error_bearer_at_end() {
+        let msg = "error: Bearer hf_secret";
+        let sanitized = sanitize_error(msg);
+        assert_eq!(sanitized, "error: Bearer ***");
+        assert!(!sanitized.contains("hf_secret"));
     }
 
     #[test]

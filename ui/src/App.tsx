@@ -180,6 +180,9 @@ function App() {
       if (hfToken) {
         msg = msg.replaceAll(hfToken, '***');
       }
+      // Strip file system paths from error messages
+      msg = msg.replace(/[A-Z]:\\\\[^\s"']*/gi, '[path]');
+      msg = msg.replace(/\/(?:home|Users|tmp|var|etc|usr|opt)\/[^\s"']*/g, '[path]');
       return msg;
     },
     [hfToken],
@@ -249,12 +252,12 @@ function App() {
         setRefreshIssue(null);
         setLastSuccessfulRefreshAt(new Date().toISOString());
       } catch (error) {
-        const errorMessage = String(error);
+        const errorMessage = safeErrorMessage(error);
         setRefreshIssue(errorMessage);
         setMessage(errorMessage);
       }
     });
-  }, [withBusyAction]);
+  }, [withBusyAction, safeErrorMessage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -265,7 +268,7 @@ function App() {
           setChatLog((prev) => [...prev, event.data!]);
         }
         if (event.eventType === 'error' && event.error) {
-          setMessage(event.error);
+          setMessage(safeErrorMessage(event.error));
         }
       },
     );
@@ -292,21 +295,36 @@ function App() {
 
     void initialLoad();
 
-    const fastIntervalId = window.setInterval(() => {
+    let fastIntervalId = window.setInterval(() => {
       void refreshDynamic();
     }, FAST_REFRESH_MS);
 
-    const slowIntervalId = window.setInterval(() => {
+    let slowIntervalId = window.setInterval(() => {
       void refreshStatic();
     }, SLOW_REFRESH_MS);
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (fastIntervalId) clearInterval(fastIntervalId);
+        if (slowIntervalId) clearInterval(slowIntervalId);
+      } else {
+        // Immediately refresh, then restart intervals
+        void refreshDynamic();
+        void refreshStatic();
+        fastIntervalId = window.setInterval(() => void refreshDynamic(), FAST_REFRESH_MS);
+        slowIntervalId = window.setInterval(() => void refreshStatic(), SLOW_REFRESH_MS);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearInterval(fastIntervalId);
       window.clearInterval(slowIntervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       void listenPromise.then((dispose) => dispose());
     };
-  }, [refreshAll, refreshDynamic, refreshStatic]);
+  }, [refreshAll, refreshDynamic, refreshStatic, safeErrorMessage]);
 
   const saveSettings = async () => {
     await withBusyAction('saveSettings', async () => {
@@ -314,7 +332,7 @@ function App() {
         await saveSettingsCommand(settings);
         setMessage('Settings saved.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -356,7 +374,7 @@ function App() {
         setPresetDraft(payload);
         setMessage(`Preset '${payload.name}' saved.`);
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -388,7 +406,7 @@ function App() {
         }
         setMessage('Preset deleted.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -413,7 +431,7 @@ function App() {
         setHistoryContent('');
         setMessage('History entry added.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -425,7 +443,7 @@ function App() {
         setHistoryEntries([]);
         setMessage('History cleared.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -462,10 +480,10 @@ function App() {
           setProcessHealth(health);
           setMessage('Server ready.');
         } catch (readyError) {
-          setMessage(`Server started but not ready: ${String(readyError)}`);
+          setMessage(`Server started but not ready: ${safeErrorMessage(readyError)}`);
         }
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -478,7 +496,7 @@ function App() {
         setProcessHealth(null);
         setMessage('llama-server stopped.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -490,7 +508,7 @@ function App() {
         const next = await getDownloadStatuses();
         setDownloads(next);
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -512,7 +530,7 @@ function App() {
         setChatStatuses(next);
         setMessage('Chat stream started.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -527,7 +545,7 @@ function App() {
         const next = await getChatStreamStatuses();
         setChatStatuses(next);
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -669,7 +687,7 @@ function App() {
         setLlamaLogs([]);
         setMessage('llama-server logs cleared.');
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
@@ -683,7 +701,7 @@ function App() {
         setProcessHealth(health);
       } catch (error) {
         const healthUrl = `${serverUrl.replace(/\/$/, '')}/health`;
-        const errorMessage = String(error);
+        const errorMessage = safeErrorMessage(error);
         setProcessHealth({
           healthy: false,
           statusCode: null,
@@ -705,7 +723,7 @@ function App() {
         setSettings((prev) => ({ ...prev, llamaServerPath: result }));
       }
     } catch (error) {
-      setMessage(String(error));
+      setMessage(safeErrorMessage(error));
     }
   };
 
@@ -719,7 +737,7 @@ function App() {
         setSettings((prev) => ({ ...prev, modelPath: result }));
       }
     } catch (error) {
-      setMessage(String(error));
+      setMessage(safeErrorMessage(error));
     }
   };
 
@@ -732,7 +750,7 @@ function App() {
         setSettings((prev) => ({ ...prev, downloadFolder: result }));
       }
     } catch (error) {
-      setMessage(String(error));
+      setMessage(safeErrorMessage(error));
     }
   };
 
@@ -764,7 +782,7 @@ function App() {
         }
         setMessage(`Loaded ${tags.length} tag(s).`);
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };

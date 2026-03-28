@@ -145,6 +145,19 @@ fn run_stream_worker(
     let server_url = request
         .server_url
         .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+
+    if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
+        fail_stream(
+            &inner,
+            &app_handle,
+            &server_url,
+            &stream_id,
+            ChatFailureKind::Other,
+            "server_url must start with http:// or https://",
+        );
+        return;
+    }
+
     let endpoint = format!("{}/v1/chat/completions", server_url.trim_end_matches('/'));
 
     let payload = json!({

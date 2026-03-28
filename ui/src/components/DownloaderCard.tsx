@@ -135,6 +135,7 @@ export function DownloaderCard({
               value={hfToken}
               onChange={(e) => onHfTokenChange(e.target.value)}
               placeholder="hf_..."
+              autoComplete="off"
             />
           </label>
           <div className="row">

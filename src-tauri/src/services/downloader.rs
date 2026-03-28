@@ -1,6 +1,6 @@
 use crate::core::models::{DownloadState, DownloadStatus};
 use reqwest::blocking::Client;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read, Write};
@@ -16,9 +16,11 @@ pub struct DownloaderService {
     inner: Arc<Mutex<DownloaderInner>>,
 }
 
+const MAX_CONCURRENT_DOWNLOADS: usize = 5;
+
 struct DownloaderInner {
     next_download_id: u64,
-    downloads: HashMap<String, DownloadRecord>,
+    downloads: BTreeMap<String, DownloadRecord>,
 }
 
 struct DownloadRecord {
@@ -38,7 +40,7 @@ impl DownloaderService {
         Self {
             inner: Arc::new(Mutex::new(DownloaderInner {
                 next_download_id: 1,
-                downloads: HashMap::new(),
+                downloads: BTreeMap::new(),
             })),
         }
     }
@@ -93,6 +95,18 @@ impl DownloaderService {
         let (download_id, temp_path, cancel_requested, started_status) = {
             let mut inner = self.inner.lock().map_err(|e| e.to_string())?;
 
+            let active_count = inner
+                .downloads
+                .values()
+                .filter(|record| !record.status.state.is_terminal())
+                .count();
+            if active_count >= MAX_CONCURRENT_DOWNLOADS {
+                return Err(format!(
+                    "maximum concurrent downloads reached ({})",
+                    MAX_CONCURRENT_DOWNLOADS
+                ));
+            }
+
             if inner.downloads.values().any(|record| {
                 record.status.destination_path == destination_path_str
                     && !record.status.state.is_terminal()
@@ -126,7 +140,7 @@ impl DownloaderService {
             inner.downloads.insert(
                 download_id.clone(),
                 DownloadRecord {
-                    status: status.clone(),
+                    status,
                     cancel_requested: Arc::clone(&cancel_requested),
                 },
             );
@@ -180,12 +194,11 @@ impl DownloaderService {
 
     pub fn get_download_statuses(&self) -> Result<Vec<DownloadStatus>, String> {
         let inner = self.inner.lock().map_err(|e| e.to_string())?;
-        let mut statuses: Vec<DownloadStatus> = inner
+        let statuses: Vec<DownloadStatus> = inner
             .downloads
             .values()
             .map(|record| record.status.clone())
             .collect();
-        statuses.sort_by(|a, b| a.download_id.cmp(&b.download_id));
         Ok(statuses)
     }
 }

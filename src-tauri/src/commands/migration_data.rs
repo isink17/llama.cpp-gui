@@ -4,14 +4,14 @@ use tauri::State;
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     persistence.load_settings().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(), String> {
     validate_settings(&settings)?;
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     persistence
         .save_settings(&settings)
         .map_err(|e| e.to_string())
@@ -19,14 +19,14 @@ pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(
 
 #[tauri::command]
 pub fn get_presets(state: State<'_, AppState>) -> Result<Vec<Preset>, String> {
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     persistence.load_presets().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn save_preset(state: State<'_, AppState>, preset: Preset) -> Result<Vec<Preset>, String> {
     validate_preset(&preset)?;
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     let mut presets = persistence.load_presets().map_err(|e| e.to_string())?;
 
     if let Some(existing) = presets.iter_mut().find(|item| item.id == preset.id) {
@@ -45,7 +45,7 @@ pub fn save_preset(state: State<'_, AppState>, preset: Preset) -> Result<Vec<Pre
 pub fn delete_preset(state: State<'_, AppState>, preset_id: String) -> Result<Vec<Preset>, String> {
     let preset_id = normalize_preset_id(preset_id)?;
 
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     let mut presets = persistence.load_presets().map_err(|e| e.to_string())?;
 
     presets.retain(|item| item.id != preset_id);
@@ -58,7 +58,7 @@ pub fn delete_preset(state: State<'_, AppState>, preset_id: String) -> Result<Ve
 
 #[tauri::command]
 pub fn get_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>, String> {
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     persistence.load_history().map_err(|e| e.to_string())
 }
 
@@ -68,7 +68,7 @@ pub fn append_history(
     entry: HistoryEntry,
 ) -> Result<Vec<HistoryEntry>, String> {
     validate_history_entry(&entry)?;
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     let mut history = persistence.load_history().map_err(|e| e.to_string())?;
     history.push(entry);
     persistence
@@ -79,19 +79,40 @@ pub fn append_history(
 
 #[tauri::command]
 pub fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
-    let persistence = state.persistence.lock().map_err(|e| e.to_string())?;
+    let persistence = state.persistence.lock();
     persistence
         .save_history(&Vec::<HistoryEntry>::new())
         .map_err(|e| e.to_string())
 }
 
 fn validate_settings(settings: &Settings) -> Result<(), String> {
+    if settings.host.is_empty()
+        || settings
+            .host
+            .chars()
+            .any(|c| c.is_whitespace() || c == ';' || c == '&' || c == '|')
+    {
+        return Err("invalid host".to_string());
+    }
+
+    if settings.llama_server_path.contains('\0') {
+        return Err("llama_server_path must not contain null bytes".to_string());
+    }
+
+    if settings.model_path.contains('\0') {
+        return Err("model_path must not contain null bytes".to_string());
+    }
+
     if settings.port == 0 {
         return Err("port must be between 1 and 65535".to_string());
     }
 
     if settings.context_size < 256 {
         return Err("context_size must be at least 256".to_string());
+    }
+
+    if settings.context_size > 131072 {
+        return Err("context_size must not exceed 131072".to_string());
     }
 
     if settings.threads == 0 {

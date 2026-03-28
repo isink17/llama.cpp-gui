@@ -19,19 +19,19 @@ pub fn start_llama_server(
     executable_path: String,
     args: Vec<String>,
 ) -> Result<LlamaProcessStatus, String> {
-    let mut manager = state.process_manager.lock().map_err(|e| e.to_string())?;
+    let mut manager = state.process_manager.lock();
     manager.start(executable_path, args)
 }
 
 #[tauri::command]
 pub fn stop_llama_server(state: State<'_, AppState>) -> Result<LlamaProcessStatus, String> {
-    let mut manager = state.process_manager.lock().map_err(|e| e.to_string())?;
+    let mut manager = state.process_manager.lock();
     manager.stop()
 }
 
 #[tauri::command]
 pub fn get_llama_server_status(state: State<'_, AppState>) -> Result<LlamaProcessStatus, String> {
-    let mut manager = state.process_manager.lock().map_err(|e| e.to_string())?;
+    let mut manager = state.process_manager.lock();
     manager.status()
 }
 
@@ -40,14 +40,14 @@ pub fn get_llama_server_logs(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<String>, String> {
-    let manager = state.process_manager.lock().map_err(|e| e.to_string())?;
+    let manager = state.process_manager.lock();
     let limit = limit.unwrap_or(DEFAULT_LOG_LIMIT).clamp(1, MAX_LOG_LIMIT);
     Ok(manager.logs(limit))
 }
 
 #[tauri::command]
 pub fn clear_llama_server_logs(state: State<'_, AppState>) -> Result<(), String> {
-    let mut manager = state.process_manager.lock().map_err(|e| e.to_string())?;
+    let mut manager = state.process_manager.lock();
     manager.clear_logs();
     Ok(())
 }
@@ -149,11 +149,22 @@ pub fn check_llama_server_health(url: Option<String>) -> Result<LlamaServerHealt
     }
 }
 
+fn validate_server_url(url: &str) -> Result<(), String> {
+    if url
+        .chars()
+        .any(|c| c.is_whitespace() || c == ';' || c == '&' || c == '|')
+    {
+        return Err("invalid server URL".to_string());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn wait_for_server_ready(
     server_url: String,
     timeout_secs: Option<u64>,
 ) -> Result<LlamaServerHealthStatus, String> {
+    validate_server_url(&server_url)?;
     let timeout = Duration::from_secs(timeout_secs.unwrap_or(DEFAULT_READY_TIMEOUT_SECS));
     let mut interval = Duration::from_millis(READY_POLL_INITIAL_MS);
     let base = server_url.trim_end_matches('/');
