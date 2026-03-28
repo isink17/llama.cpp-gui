@@ -509,10 +509,10 @@ function App() {
           setProcessHealth(health);
           setMessage('Server ready.');
         } catch (readyError) {
-          setMessage(`Server restarted but not ready: ${String(readyError)}`);
+          setMessage(`Server restarted but not ready: ${safeErrorMessage(readyError)}`);
         }
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
