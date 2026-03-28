@@ -123,7 +123,7 @@ export function SettingsCard({
           </button>
         </div>
       </label>
-      <button onClick={() => void onSave()} disabled={isSaving}>
+      <button type="button" onClick={() => void onSave()} disabled={isSaving}>
         {isSaving ? 'Saving...' : 'Save settings'}
       </button>
     </article>

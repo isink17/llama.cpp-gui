@@ -34,7 +34,7 @@ export function PresetsCard({
     <article className="card">
       <div className="panel-header">
         <h2>Presets</h2>
-        <button className="secondary" onClick={onNewPreset}>
+        <button type="button" className="secondary" onClick={onNewPreset}>
           New preset
         </button>
       </div>
@@ -49,10 +49,10 @@ export function PresetsCard({
         />
       </label>
       <div className="row">
-        <button onClick={onSavePresetFromSettings} disabled={isSaving}>
+        <button type="button" onClick={onSavePresetFromSettings} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save current settings as preset'}
         </button>
-        <button className="secondary" onClick={onResetPresetDraft}>
+        <button type="button" className="secondary" onClick={onResetPresetDraft}>
           Clear
         </button>
       </div>
@@ -79,6 +79,7 @@ export function PresetsCard({
                 </div>
                 <div className="row">
                   <button
+                    type="button"
                     className="secondary"
                     onClick={() => onApplyPreset(preset)}
                     disabled={isDeletingPreset(preset.id)}
@@ -86,6 +87,7 @@ export function PresetsCard({
                     Apply
                   </button>
                   <button
+                    type="button"
                     className="secondary"
                     onClick={() => onEditPreset(preset)}
                     disabled={isDeletingPreset(preset.id)}
@@ -93,6 +95,7 @@ export function PresetsCard({
                     Edit
                   </button>
                   <button
+                    type="button"
                     className="danger"
                     onClick={() => onDeletePreset(preset.id)}
                     disabled={isDeletingPreset(preset.id)}

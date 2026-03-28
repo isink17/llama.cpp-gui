@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri, type InvokeArgs } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type Settings = {
@@ -136,6 +136,7 @@ export type CheckLlamaServerHealthRequest = {
 export type StartDownloadRequest = {
   sourceUrl: string;
   destinationPath: string;
+  requestHeaders?: Record<string, string> | null;
 };
 
 export type CancelDownloadRequest = {
@@ -150,52 +151,68 @@ export type CancelChatStreamRequest = {
   streamId: string;
 };
 
-export const getSettings = () => invoke<Settings>('get_settings');
+const TAURI_RUNTIME_ERROR =
+  'Tauri runtime is not available. Launch the app through the Tauri shell instead of the Vite dev server.';
+
+const ensureTauriRuntime = () => {
+  if (!isTauri()) {
+    throw new Error(TAURI_RUNTIME_ERROR);
+  }
+};
+
+const invokeTauri = <T>(command: string, args?: InvokeArgs) => {
+  ensureTauriRuntime();
+  return invoke<T>(command, args);
+};
+
+export const getSettings = () => invokeTauri<Settings>('get_settings');
 
 export const saveSettings = (settings: Settings) =>
-  invoke<void>('save_settings', { settings } satisfies SaveSettingsRequest);
+  invokeTauri<void>('save_settings', { settings } satisfies SaveSettingsRequest);
 
-export const getPresets = () => invoke<Preset[]>('get_presets');
+export const getPresets = () => invokeTauri<Preset[]>('get_presets');
 
 export const savePreset = (request: SavePresetRequest) =>
-  invoke<SavePresetResponse>('save_preset', request);
+  invokeTauri<SavePresetResponse>('save_preset', request);
 
 export const deletePreset = (request: DeletePresetRequest) =>
-  invoke<DeletePresetResponse>('delete_preset', request);
+  invokeTauri<DeletePresetResponse>('delete_preset', request);
 
-export const getHistory = () => invoke<HistoryEntry[]>('get_history');
+export const getHistory = () => invokeTauri<HistoryEntry[]>('get_history');
 
 export const appendHistory = (request: AppendHistoryRequest) =>
-  invoke<AppendHistoryResponse>('append_history', request);
+  invokeTauri<AppendHistoryResponse>('append_history', request);
 
-export const clearHistory = () => invoke<ClearHistoryResponse>('clear_history');
+export const clearHistory = () => invokeTauri<ClearHistoryResponse>('clear_history');
 
 export const subscribeToChatStreamEvent = (
   handler: (event: ChatStreamEvent) => void,
 ): Promise<UnlistenFn> =>
-  listen<ChatStreamEvent>('chat_stream_event', (event) => {
-    handler(event.payload);
-  });
+  isTauri()
+    ? listen<ChatStreamEvent>('chat_stream_event', (event) => {
+        handler(event.payload);
+      })
+    : Promise.resolve(() => {});
 
 export const onChatStreamEvent = subscribeToChatStreamEvent;
 
 export const getLlamaServerStatus = () =>
-  invoke<LlamaProcessStatus>('get_llama_server_status');
+  invokeTauri<LlamaProcessStatus>('get_llama_server_status');
 
 export const startLlamaServer = (request: StartLlamaServerRequest) =>
-  invoke<LlamaProcessStatus>('start_llama_server', request);
+  invokeTauri<LlamaProcessStatus>('start_llama_server', request);
 
 export const stopLlamaServer = () =>
-  invoke<LlamaProcessStatus>('stop_llama_server');
+  invokeTauri<LlamaProcessStatus>('stop_llama_server');
 
 export const getLlamaServerLogs = (request: GetLlamaServerLogsRequest = {}) =>
-  invoke<string[]>('get_llama_server_logs', request);
+  invokeTauri<string[]>('get_llama_server_logs', request);
 
 export const clearLlamaServerLogs = () =>
-  invoke<void>('clear_llama_server_logs');
+  invokeTauri<void>('clear_llama_server_logs');
 
 export const checkLlamaServerHealth = (request: CheckLlamaServerHealthRequest) =>
-  invoke<LlamaServerHealthStatus>('check_llama_server_health', request);
+  invokeTauri<LlamaServerHealthStatus>('check_llama_server_health', request);
 
 export const getLlamaServerHealth = checkLlamaServerHealth;
 
@@ -205,25 +222,25 @@ export type WaitForServerReadyRequest = {
 };
 
 export const waitForServerReady = (request: WaitForServerReadyRequest) =>
-  invoke<LlamaServerHealthStatus>('wait_for_server_ready', request);
+  invokeTauri<LlamaServerHealthStatus>('wait_for_server_ready', request);
 
 export const getDownloadStatuses = () =>
-  invoke<DownloadStatus[]>('get_download_statuses');
+  invokeTauri<DownloadStatus[]>('get_download_statuses');
 
 export const startDownload = (request: StartDownloadRequest) =>
-  invoke<DownloadStatus>('start_download', request);
+  invokeTauri<DownloadStatus>('start_download', request);
 
 export const cancelDownload = (request: CancelDownloadRequest) =>
-  invoke<DownloadStatus>('cancel_download', request);
+  invokeTauri<DownloadStatus>('cancel_download', request);
 
 export const getChatStreamStatuses = () =>
-  invoke<ChatStreamStatus[]>('get_chat_stream_statuses');
+  invokeTauri<ChatStreamStatus[]>('get_chat_stream_statuses');
 
 export const startChatStream = (request: StartChatStreamRequest) =>
-  invoke<ChatStreamStatus>('start_chat_stream', request);
+  invokeTauri<ChatStreamStatus>('start_chat_stream', request);
 
 export const cancelChatStream = (request: CancelChatStreamRequest) =>
-  invoke<ChatStreamStatus>('cancel_chat_stream', request);
+  invokeTauri<ChatStreamStatus>('cancel_chat_stream', request);
 
 export type ResolvedModelDownload = {
   downloadUrl: string;
@@ -247,13 +264,13 @@ export type ListOllamaTagsRequest = {
 };
 
 export const resolveModelReference = (request: ResolveModelReferenceRequest) =>
-  invoke<ResolvedModelDownload>('resolve_model_reference', request);
+  invokeTauri<ResolvedModelDownload>('resolve_model_reference', request);
 
 export const listHuggingFaceFiles = (request: ListHuggingFaceFilesRequest) =>
-  invoke<string[]>('list_hugging_face_files', request);
+  invokeTauri<string[]>('list_hugging_face_files', request);
 
 export const listOllamaTags = (request: ListOllamaTagsRequest) =>
-  invoke<string[]>('list_ollama_tags', request);
+  invokeTauri<string[]>('list_ollama_tags', request);
 
 export type PickFileRequest = {
   title: string;
@@ -265,7 +282,7 @@ export type PickFolderRequest = {
 };
 
 export const pickFile = (request: PickFileRequest) =>
-  invoke<string | null>('pick_file', request);
+  invokeTauri<string | null>('pick_file', request);
 
 export const pickFolder = (request: PickFolderRequest) =>
-  invoke<string | null>('pick_folder', request);
+  invokeTauri<string | null>('pick_folder', request);

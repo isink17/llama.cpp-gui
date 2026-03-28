@@ -1,5 +1,6 @@
 use crate::core::models::DownloadStatus;
 use crate::state::app_state::AppState;
+use std::collections::HashMap;
 use tauri::State;
 
 trait DownloadCommandBackend {
@@ -7,6 +8,7 @@ trait DownloadCommandBackend {
         &self,
         source_url: String,
         destination_path: String,
+        request_headers: Option<HashMap<String, String>>,
     ) -> Result<DownloadStatus, String>;
 
     fn cancel_download(&self, download_id: &str) -> Result<DownloadStatus, String>;
@@ -21,8 +23,9 @@ impl DownloadCommandBackend for crate::services::downloader::DownloaderService {
         &self,
         source_url: String,
         destination_path: String,
+        request_headers: Option<HashMap<String, String>>,
     ) -> Result<DownloadStatus, String> {
-        Self::start_download(self, source_url, destination_path)
+        Self::start_download(self, source_url, destination_path, request_headers)
     }
 
     fn cancel_download(&self, download_id: &str) -> Result<DownloadStatus, String> {
@@ -42,8 +45,9 @@ fn start_download_with(
     downloader: &impl DownloadCommandBackend,
     source_url: String,
     destination_path: String,
+    request_headers: Option<HashMap<String, String>>,
 ) -> Result<DownloadStatus, String> {
-    downloader.start_download(source_url, destination_path)
+    downloader.start_download(source_url, destination_path, request_headers)
 }
 
 fn cancel_download_with(
@@ -71,9 +75,10 @@ pub fn start_download(
     state: State<'_, AppState>,
     source_url: String,
     destination_path: String,
+    request_headers: Option<HashMap<String, String>>,
 ) -> Result<DownloadStatus, String> {
     let downloader = state.inner().downloader.lock();
-    start_download_with(&*downloader, source_url, destination_path)
+    start_download_with(&*downloader, source_url, destination_path, request_headers)
 }
 
 #[tauri::command]
@@ -108,6 +113,7 @@ mod tests {
     };
     use crate::core::models::{DownloadState, DownloadStatus};
     use std::cell::RefCell;
+    use std::collections::HashMap;
 
     #[derive(Default)]
     struct FakeDownloader {
@@ -122,6 +128,7 @@ mod tests {
             &self,
             source_url: String,
             destination_path: String,
+            _request_headers: Option<HashMap<String, String>>,
         ) -> Result<DownloadStatus, String> {
             self.start_calls
                 .borrow_mut()
@@ -162,6 +169,7 @@ mod tests {
             &self,
             source_url: String,
             destination_path: String,
+            _request_headers: Option<HashMap<String, String>>,
         ) -> Result<DownloadStatus, String> {
             Err(format!(
                 "start failed for {source_url} -> {destination_path}"
@@ -202,6 +210,7 @@ mod tests {
             &downloader,
             "https://example.com/model.bin".to_string(),
             "C:/models/model.bin".to_string(),
+            None,
         )
         .unwrap();
         let cancel_status = cancel_download_with(&downloader, "download-7".to_string()).unwrap();
@@ -238,6 +247,7 @@ mod tests {
             &downloader,
             "https://example.com/model.bin".to_string(),
             "C:/models/model.bin".to_string(),
+            None,
         )
         .expect_err("expected start helper to forward backend error");
         let cancel_err = cancel_download_with(&downloader, "download-7".to_string())

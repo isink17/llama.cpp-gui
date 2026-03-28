@@ -44,6 +44,8 @@ npm --prefix ui install
 npm --prefix ui run dev
 ```
 
+This starts the browser-only Vite app on the default port (`5173`). Tauri features are disabled in that mode.
+
 ### Build frontend
 
 ```powershell
@@ -62,6 +64,8 @@ cargo check --manifest-path src-tauri/Cargo.toml
 ```powershell
 cargo run --manifest-path src-tauri/Cargo.toml
 ```
+
+`cargo run` will launch the Tauri shell and start the UI through the same `npm --prefix ui run dev` command used for browser-only development.
 
 ## Data Directory
 

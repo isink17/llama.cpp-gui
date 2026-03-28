@@ -137,10 +137,14 @@ export function ChatCard({
         />
       </label>
       <div className="row">
-        <button onClick={() => void onStartChat()} disabled={isStartingChat}>
+        <button type="button" onClick={() => void onStartChat()} disabled={isStartingChat}>
           {isStartingChat ? 'Starting...' : 'Start stream'}
         </button>
-        <button onClick={() => void onCancelChat()} disabled={!canCancelChat || isCancellingChat}>
+        <button
+          type="button"
+          onClick={() => void onCancelChat()}
+          disabled={!canCancelChat || isCancellingChat}
+        >
           {isCancellingChat ? 'Cancelling...' : 'Cancel stream'}
         </button>
       </div>
@@ -194,12 +198,14 @@ export function ChatCard({
           <pre>{chatLog.join('')}</pre>
           <div className="chat-message-actions">
             <button
+              type="button"
               className="secondary small"
               onClick={() => handleCopy(chatLog.join(''))}
             >
               {copiedFlag ? 'Copied!' : 'Copy'}
             </button>
             <button
+              type="button"
               className="secondary small"
               onClick={() => onUseAsPrompt?.(chatLog.join(''))}
             >

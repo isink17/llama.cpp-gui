@@ -36,6 +36,7 @@ import {
   type Preset,
   type Settings,
 } from './lib/tauri/api';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SettingsCard } from './components/SettingsCard';
 import { LlamaServerCard } from './components/LlamaServerCard';
@@ -488,6 +489,52 @@ function App() {
     });
   };
 
+  const restartProcess = async () => {
+    await withBusyAction('restartProcess', async () => {
+      try {
+        const stoppedStatus = await stopLlamaServerCommand();
+        setProcessStatus(stoppedStatus);
+        setProcessHealth(null);
+
+        const startedStatus = await startLlamaServerCommand({
+          executablePath: settings.llamaServerPath,
+          args: buildServerArgs(),
+        });
+        setProcessStatus(startedStatus);
+        setProcessHealth(null);
+        setMessage('llama-server restarted. Waiting for readiness...');
+
+        try {
+          const health = await waitForServerReady({ serverUrl });
+          setProcessHealth(health);
+          setMessage('Server ready.');
+        } catch (readyError) {
+          setMessage(`Server restarted but not ready: ${String(readyError)}`);
+        }
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
+  };
+
+  const stopApplication = async () => {
+    await withBusyAction('stopApplication', async () => {
+      try {
+        if (processStatus.running) {
+          try {
+            await stopLlamaServerCommand();
+          } catch {
+            // Closing the app should still be allowed even if shutdown fails.
+          }
+        }
+
+        await getCurrentWindow().close();
+      } catch (error) {
+        setMessage(String(error));
+      }
+    });
+  };
+
   const stopProcess = async () => {
     await withBusyAction('stopProcess', async () => {
       try {
@@ -833,6 +880,7 @@ function App() {
         await startDownloadCommand({
           sourceUrl: resolvedUrl,
           destinationPath: destPath,
+          requestHeaders: headers ?? null,
         });
         const next = await getDownloadStatuses();
         setDownloads(next);
@@ -847,7 +895,8 @@ function App() {
   const isSavingSettings = isBusy('saveSettings');
   const isCheckingHealth = isBusy('checkHealth');
   const isProcessTransitionBusy =
-    isBusy('startProcess') || isBusy('stopProcess');
+    isBusy('startProcess') || isBusy('stopProcess') || isBusy('restartProcess');
+  const isStoppingApplication = isBusy('stopApplication');
   const isSavingPreset = isBusy('savePreset');
   const isAppendingHistory = isBusy('appendHistory');
   const isClearingHistory = isBusy('clearHistory');
@@ -878,9 +927,19 @@ function App() {
             </span>
           </div>
         </div>
-        <button onClick={() => void refreshAll()} disabled={isRefreshing}>
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="row">
+          <button type="button" onClick={() => void refreshAll()} disabled={isRefreshing}>
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button
+            type="button"
+            className="danger"
+            onClick={() => void stopApplication()}
+            disabled={isStoppingApplication}
+          >
+            {isStoppingApplication ? 'Stopping...' : 'Stop application'}
+          </button>
+        </div>
       </header>
 
       <section className="grid">
@@ -905,9 +964,11 @@ function App() {
           isProcessTransitionBusy={isProcessTransitionBusy}
           isStartingProcess={isBusy('startProcess')}
           isStoppingProcess={isBusy('stopProcess')}
+          isRestartingProcess={isBusy('restartProcess')}
           isClearingLogs={isClearingLogs}
           onCheckHealth={() => void checkProcessHealth()}
           onStartProcess={() => void startProcess()}
+          onRestartProcess={() => void restartProcess()}
           onStopProcess={() => void stopProcess()}
           onClearLogs={() => void clearLogs()}
           llamaLogs={llamaLogs}

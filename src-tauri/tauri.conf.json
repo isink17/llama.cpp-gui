@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.llamacppdesk.app",
   "build": {
-    "beforeDevCommand": "npm --prefix ../ui run dev -- --port 1420 --strictPort",
+    "beforeDevCommand": "npm --prefix ../ui run dev",
     "beforeBuildCommand": "npm --prefix ../ui run build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../ui/dist"

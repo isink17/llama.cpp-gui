@@ -194,7 +194,7 @@ export function DownloaderCard({
           placeholder="Leave blank for suggested filename"
         />
       </label>
-      <button onClick={() => void onStartDownload()} disabled={isStartingDownload}>
+      <button type="button" onClick={() => void onStartDownload()} disabled={isStartingDownload}>
         {isStartingDownload ? 'Starting...' : 'Start download'}
       </button>
       <ul>
@@ -238,6 +238,7 @@ export function DownloaderCard({
               </div>
               <div className="row">
                 <button
+                  type="button"
                   onClick={() => void onCancelDownload(item.downloadId)}
                   disabled={isCancellingDownload(item.downloadId)}
                 >

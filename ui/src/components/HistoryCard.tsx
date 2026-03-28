@@ -37,6 +37,7 @@ export function HistoryCard({
       <div className="panel-header">
         <h2>History</h2>
         <button
+          type="button"
           className="secondary"
           onClick={onClearHistory}
           disabled={isClearing}
@@ -73,7 +74,7 @@ export function HistoryCard({
         />
       </label>
       <div className="row">
-        <button onClick={onAppendHistoryEntry} disabled={isAppending}>
+        <button type="button" onClick={onAppendHistoryEntry} disabled={isAppending}>
           {isAppending ? 'Appending...' : 'Append history'}
         </button>
       </div>
