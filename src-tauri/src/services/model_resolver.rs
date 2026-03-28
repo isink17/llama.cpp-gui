@@ -1,8 +1,8 @@
 use crate::core::models::ResolvedModelDownload;
+use parking_lot::Mutex;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
-use parking_lot::Mutex;
 use std::time::{Duration, Instant};
 
 struct CacheEntry<T> {
@@ -95,7 +95,8 @@ impl ModelResolverService {
         let repo_path = parse_ollama_repo_path(input);
 
         // Check cache first
-        if let Ok(cache) = self.ollama_cache.lock() {
+        {
+            let cache = self.ollama_cache.lock();
             if let Some(entry) = cache.get(&repo_path) {
                 if entry.expires_at > Instant::now() {
                     return Ok(entry.data.clone());
@@ -129,7 +130,8 @@ impl ModelResolverService {
             .collect();
 
         // Store in cache with 5-minute TTL
-        if let Ok(mut cache) = self.ollama_cache.lock() {
+        {
+            let mut cache = self.ollama_cache.lock();
             cache.insert(
                 repo_path,
                 CacheEntry {
@@ -266,7 +268,8 @@ impl ModelResolverService {
         token: Option<&str>,
     ) -> Result<Vec<String>, String> {
         // Check cache first
-        if let Ok(cache) = self.hf_cache.lock() {
+        {
+            let cache = self.hf_cache.lock();
             if let Some(entry) = cache.get(repo_id) {
                 if entry.expires_at > Instant::now() {
                     return Ok(entry.data.clone());
@@ -303,7 +306,8 @@ impl ModelResolverService {
             .collect();
 
         // Store in cache with 5-minute TTL
-        if let Ok(mut cache) = self.hf_cache.lock() {
+        {
+            let mut cache = self.hf_cache.lock();
             cache.insert(
                 repo_id.to_string(),
                 CacheEntry {
