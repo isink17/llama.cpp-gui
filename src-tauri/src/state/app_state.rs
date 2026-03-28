@@ -3,7 +3,7 @@ use crate::services::downloader::DownloaderService;
 use crate::services::model_resolver::ModelResolverService;
 use crate::services::persistence::PersistenceService;
 use crate::services::process_manager::ProcessManager;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 pub struct AppState {
     pub persistence: Mutex<PersistenceService>,

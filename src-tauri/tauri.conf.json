@@ -10,6 +10,9 @@
     "frontendDist": "../ui/dist"
   },
   "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://registry.ollama.ai; img-src 'self'; font-src 'self'"
+    },
     "windows": [
       {
         "label": "main",

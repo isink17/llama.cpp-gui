@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Best-effort checks should not block the existing tag release job.
     continue-on-error: true
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -38,6 +39,9 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
+      - name: Clean npm cache
+        run: npm cache clean --force
+
       - name: Install UI dependencies
         working-directory: ui
         run: npm ci
@@ -45,6 +49,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.88.0
           components: rustfmt
 
       - name: Run smoke checks
@@ -65,6 +70,7 @@ jobs:
             publish: false
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -91,6 +97,11 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
+      - name: Clean npm cache
+        run: npm cache clean --force
 
       - name: Install UI dependencies
         working-directory: ui

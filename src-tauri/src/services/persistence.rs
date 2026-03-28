@@ -65,7 +65,16 @@ impl PersistenceService {
         let tmp_path = self.data_dir.join(format!("{file_name}.tmp"));
         let json = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
         fs::write(&tmp_path, json)?;
-        fs::rename(tmp_path, path)
+        fs::rename(&tmp_path, &path)?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o600);
+            std::fs::set_permissions(&path, perms).ok();
+        }
+
+        Ok(())
     }
 }
 

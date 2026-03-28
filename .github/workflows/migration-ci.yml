@@ -1,7 +1,7 @@
-name: Migration CI
+name: CI
 
 on:
-  push:
+  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -53,6 +53,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.88.0
           components: rustfmt
 
       - name: Ensure Windows icon asset
@@ -103,6 +104,13 @@ jobs:
         working-directory: src-tauri
         run: cargo test --locked --no-run
 
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        working-directory: src-tauri
+        run: cargo audit
+
   validate-cross-platform:
     name: Cross-platform UI and Rust checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -149,6 +157,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.88.0
           components: rustfmt
 
       - name: Ensure Windows icon asset

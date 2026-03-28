@@ -1,6 +1,5 @@
 use crate::core::models::{ChatStreamRequest, ChatStreamStatus};
 use crate::state::app_state::AppState;
-use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, State};
 
 trait ChatCommandBackend {
@@ -43,12 +42,6 @@ impl ChatCommandBackend for crate::services::chat::ChatService {
     }
 }
 
-fn lock_chat(
-    chat: &Mutex<crate::services::chat::ChatService>,
-) -> Result<MutexGuard<'_, crate::services::chat::ChatService>, String> {
-    chat.lock().map_err(|e| e.to_string())
-}
-
 fn start_chat_stream_with<B>(
     chat: &B,
     app: B::App,
@@ -86,7 +79,7 @@ pub fn start_chat_stream(
     state: State<'_, AppState>,
     request: ChatStreamRequest,
 ) -> Result<ChatStreamStatus, String> {
-    let chat = lock_chat(&state.inner().chat)?;
+    let chat = state.inner().chat.lock();
     start_chat_stream_with(&*chat, app, request)
 }
 
@@ -95,7 +88,7 @@ pub fn cancel_chat_stream(
     state: State<'_, AppState>,
     stream_id: String,
 ) -> Result<ChatStreamStatus, String> {
-    let chat = lock_chat(&state.inner().chat)?;
+    let chat = state.inner().chat.lock();
     cancel_chat_stream_with(&*chat, stream_id)
 }
 
@@ -104,7 +97,7 @@ pub fn get_chat_stream_status(
     state: State<'_, AppState>,
     stream_id: String,
 ) -> Result<ChatStreamStatus, String> {
-    let chat = lock_chat(&state.inner().chat)?;
+    let chat = state.inner().chat.lock();
     get_chat_stream_status_with(&*chat, stream_id)
 }
 
@@ -112,7 +105,7 @@ pub fn get_chat_stream_status(
 pub fn get_chat_stream_statuses(
     state: State<'_, AppState>,
 ) -> Result<Vec<ChatStreamStatus>, String> {
-    let chat = lock_chat(&state.inner().chat)?;
+    let chat = state.inner().chat.lock();
     get_chat_stream_statuses_with(&*chat)
 }
 
@@ -120,12 +113,10 @@ pub fn get_chat_stream_statuses(
 mod tests {
     use super::{
         cancel_chat_stream_with, get_chat_stream_status_with, get_chat_stream_statuses_with,
-        lock_chat, start_chat_stream_with, ChatCommandBackend,
+        start_chat_stream_with, ChatCommandBackend,
     };
     use crate::core::models::{ChatMessage, ChatStreamRequest, ChatStreamState, ChatStreamStatus};
-    use crate::services::chat::ChatService;
     use std::cell::RefCell;
-    use std::sync::{Arc, Mutex};
 
     #[derive(Default)]
     struct FakeChatService {
@@ -217,21 +208,5 @@ mod tests {
         assert_eq!(cancel_status.stream_id, "stream-9");
         assert_eq!(status.stream_id, "stream-9");
         assert_eq!(statuses.len(), 2);
-    }
-
-    #[test]
-    fn chat_lock_errors_are_stringified() {
-        let chat = Arc::new(Mutex::new(ChatService::new()));
-        let poisoned_chat = Arc::clone(&chat);
-        let _ = std::panic::catch_unwind(move || {
-            let _guard = poisoned_chat.lock().unwrap();
-            panic!("poison the chat mutex");
-        });
-
-        let err = match lock_chat(chat.as_ref()) {
-            Ok(_) => panic!("expected poisoned chat mutex lock to fail"),
-            Err(err) => err,
-        };
-        assert!(err.contains("poisoned"));
     }
 }

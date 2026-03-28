@@ -1,6 +1,5 @@
 use crate::core::models::DownloadStatus;
 use crate::state::app_state::AppState;
-use std::sync::{Mutex, MutexGuard};
 use tauri::State;
 
 trait DownloadCommandBackend {
@@ -39,12 +38,6 @@ impl DownloadCommandBackend for crate::services::downloader::DownloaderService {
     }
 }
 
-fn lock_downloader(
-    downloader: &Mutex<crate::services::downloader::DownloaderService>,
-) -> Result<MutexGuard<'_, crate::services::downloader::DownloaderService>, String> {
-    downloader.lock().map_err(|e| e.to_string())
-}
-
 fn start_download_with(
     downloader: &impl DownloadCommandBackend,
     source_url: String,
@@ -79,7 +72,7 @@ pub fn start_download(
     source_url: String,
     destination_path: String,
 ) -> Result<DownloadStatus, String> {
-    let downloader = lock_downloader(&state.inner().downloader)?;
+    let downloader = state.inner().downloader.lock();
     start_download_with(&*downloader, source_url, destination_path)
 }
 
@@ -88,7 +81,7 @@ pub fn cancel_download(
     state: State<'_, AppState>,
     download_id: String,
 ) -> Result<DownloadStatus, String> {
-    let downloader = lock_downloader(&state.inner().downloader)?;
+    let downloader = state.inner().downloader.lock();
     cancel_download_with(&*downloader, download_id)
 }
 
@@ -97,13 +90,13 @@ pub fn get_download_status(
     state: State<'_, AppState>,
     download_id: String,
 ) -> Result<DownloadStatus, String> {
-    let downloader = lock_downloader(&state.inner().downloader)?;
+    let downloader = state.inner().downloader.lock();
     get_download_status_with(&*downloader, download_id)
 }
 
 #[tauri::command]
 pub fn get_download_statuses(state: State<'_, AppState>) -> Result<Vec<DownloadStatus>, String> {
-    let downloader = lock_downloader(&state.inner().downloader)?;
+    let downloader = state.inner().downloader.lock();
     get_download_statuses_with(&*downloader)
 }
 
@@ -111,12 +104,10 @@ pub fn get_download_statuses(state: State<'_, AppState>) -> Result<Vec<DownloadS
 mod tests {
     use super::{
         cancel_download_with, get_download_status_with, get_download_statuses_with,
-        lock_downloader, start_download_with, DownloadCommandBackend,
+        start_download_with, DownloadCommandBackend,
     };
     use crate::core::models::{DownloadState, DownloadStatus};
-    use crate::services::downloader::DownloaderService;
     use std::cell::RefCell;
-    use std::sync::{Arc, Mutex};
 
     #[derive(Default)]
     struct FakeDownloader {
@@ -263,21 +254,5 @@ mod tests {
         assert_eq!(cancel_err, "cancel failed for download-7");
         assert_eq!(status_err, "status failed for download-7");
         assert_eq!(statuses_err, "status list failed");
-    }
-
-    #[test]
-    fn downloader_lock_errors_are_stringified() {
-        let downloader = Arc::new(Mutex::new(DownloaderService::new()));
-        let poisoned_downloader = Arc::clone(&downloader);
-        let _ = std::panic::catch_unwind(move || {
-            let _guard = poisoned_downloader.lock().unwrap();
-            panic!("poison the downloader mutex");
-        });
-
-        let err = match lock_downloader(downloader.as_ref()) {
-            Ok(_) => panic!("expected poisoned downloader mutex lock to fail"),
-            Err(err) => err,
-        };
-        assert!(err.contains("poisoned"));
     }
 }
