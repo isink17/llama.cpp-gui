@@ -530,7 +530,7 @@ function App() {
 
         await getCurrentWindow().close();
       } catch (error) {
-        setMessage(String(error));
+        setMessage(safeErrorMessage(error));
       }
     });
   };
