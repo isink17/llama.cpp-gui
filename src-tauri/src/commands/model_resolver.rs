@@ -28,4 +28,3 @@ pub fn list_ollama_tags(state: State<'_, AppState>, input: String) -> Result<Vec
     let resolver = state.inner().model_resolver.lock();
     resolver.list_ollama_tags(&input)
 }
-

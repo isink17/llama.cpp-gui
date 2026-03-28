@@ -209,5 +209,4 @@ mod tests {
         assert_eq!(status.stream_id, "stream-9");
         assert_eq!(statuses.len(), 2);
     }
-
 }

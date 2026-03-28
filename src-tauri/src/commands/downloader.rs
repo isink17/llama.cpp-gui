@@ -255,5 +255,4 @@ mod tests {
         assert_eq!(status_err, "status failed for download-7");
         assert_eq!(statuses_err, "status list failed");
     }
-
 }

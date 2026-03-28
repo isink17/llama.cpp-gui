@@ -280,9 +280,9 @@ impl ModelResolverService {
             request = request.header("Authorization", format!("Bearer {token}"));
         }
 
-        let response = request
-            .send()
-            .map_err(|e| sanitize_error(&format!("failed to fetch Hugging Face model info: {e}")))?;
+        let response = request.send().map_err(|e| {
+            sanitize_error(&format!("failed to fetch Hugging Face model info: {e}"))
+        })?;
 
         if !response.status().is_success() {
             return Err(format!(
@@ -291,9 +291,9 @@ impl ModelResolverService {
             ));
         }
 
-        let model: HuggingFaceModel = response
-            .json()
-            .map_err(|e| sanitize_error(&format!("failed to parse Hugging Face model response: {e}")))?;
+        let model: HuggingFaceModel = response.json().map_err(|e| {
+            sanitize_error(&format!("failed to parse Hugging Face model response: {e}"))
+        })?;
 
         let siblings: Vec<String> = model
             .siblings
