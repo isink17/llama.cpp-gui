@@ -2,7 +2,7 @@ use crate::core::models::ResolvedModelDownload;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::time::{Duration, Instant};
 
 struct CacheEntry<T> {
