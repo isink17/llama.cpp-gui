@@ -1,5 +1,6 @@
 use crate::core::models::{LlamaProcessStatus, LlamaServerHealthStatus};
-use crate::state::app_state::AppState;
+use crate::state::app_state::SharedAppState;
+use crate::state::remote_events::RemoteEventKind;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use std::time::{Duration, Instant};
@@ -15,29 +16,37 @@ const READY_REQUEST_TIMEOUT_SECS: u64 = 5;
 
 #[tauri::command]
 pub fn start_llama_server(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     executable_path: String,
     args: Vec<String>,
 ) -> Result<LlamaProcessStatus, String> {
     let mut manager = state.process_manager.lock();
-    manager.start(executable_path, args)
+    let result = manager.start(executable_path, args);
+    if let Ok(status) = &result {
+        state.publish_remote_event(RemoteEventKind::Process, status.clone());
+    }
+    result
 }
 
 #[tauri::command]
-pub fn stop_llama_server(state: State<'_, AppState>) -> Result<LlamaProcessStatus, String> {
+pub fn stop_llama_server(state: State<'_, SharedAppState>) -> Result<LlamaProcessStatus, String> {
     let mut manager = state.process_manager.lock();
-    manager.stop()
+    let result = manager.stop();
+    if let Ok(status) = &result {
+        state.publish_remote_event(RemoteEventKind::Process, status.clone());
+    }
+    result
 }
 
 #[tauri::command]
-pub fn get_llama_server_status(state: State<'_, AppState>) -> Result<LlamaProcessStatus, String> {
+pub fn get_llama_server_status(state: State<'_, SharedAppState>) -> Result<LlamaProcessStatus, String> {
     let mut manager = state.process_manager.lock();
     manager.status()
 }
 
 #[tauri::command]
 pub fn get_llama_server_logs(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     limit: Option<usize>,
 ) -> Result<Vec<String>, String> {
     let manager = state.process_manager.lock();
@@ -46,9 +55,10 @@ pub fn get_llama_server_logs(
 }
 
 #[tauri::command]
-pub fn clear_llama_server_logs(state: State<'_, AppState>) -> Result<(), String> {
+pub fn clear_llama_server_logs(state: State<'_, SharedAppState>) -> Result<(), String> {
     let mut manager = state.process_manager.lock();
     manager.clear_logs();
+    state.publish_remote_event(RemoteEventKind::Logs, Vec::<String>::new());
     Ok(())
 }
 

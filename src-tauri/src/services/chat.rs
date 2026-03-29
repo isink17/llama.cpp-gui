@@ -1,6 +1,7 @@
 use crate::core::models::{
     ChatMessage, ChatStreamEvent, ChatStreamRequest, ChatStreamState, ChatStreamStatus,
 };
+use crate::state::remote_events::{RemoteEventHub, RemoteEventKind};
 use reqwest::blocking::Client;
 use serde_json::json;
 use std::collections::HashMap;
@@ -12,6 +13,29 @@ use std::sync::{
 };
 use std::thread;
 use tauri::{AppHandle, Emitter};
+
+pub trait ChatEventSink: Clone + Send + Sync + 'static {
+    fn emit_chat_event(&self, event: ChatStreamEvent);
+}
+
+impl ChatEventSink for AppHandle {
+    fn emit_chat_event(&self, event: ChatStreamEvent) {
+        if let Err(err) = self.emit("chat_stream_event", &event) {
+            eprintln!(
+                "failed to emit chat_stream_event (stream_id={}, type={}): {err}",
+                event.stream_id, event.event_type
+            );
+        }
+    }
+}
+
+impl ChatEventSink for RemoteEventHub {
+    fn emit_chat_event(&self, event: ChatStreamEvent) {
+        if let Ok(payload) = serde_json::to_value(&event) {
+            self.publish(RemoteEventKind::Chat, payload);
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct ChatService {
@@ -45,11 +69,14 @@ impl ChatService {
         }
     }
 
-    pub fn start_stream(
+    pub fn start_stream<E>(
         &self,
-        app_handle: AppHandle,
+        event_sink: E,
         request: ChatStreamRequest,
-    ) -> Result<ChatStreamStatus, String> {
+    ) -> Result<ChatStreamStatus, String>
+    where
+        E: ChatEventSink,
+    {
         let model = request.model.trim().to_string();
         if model.is_empty() {
             return Err("model cannot be empty".to_string());
@@ -89,7 +116,7 @@ impl ChatService {
         thread::spawn(move || {
             run_stream_worker(
                 worker_inner,
-                app_handle,
+                event_sink,
                 stream_id,
                 request,
                 cancel_requested,
@@ -137,7 +164,7 @@ impl ChatService {
 
 fn run_stream_worker(
     inner: Arc<Mutex<ChatInner>>,
-    app_handle: AppHandle,
+    event_sink: impl ChatEventSink,
     stream_id: String,
     request: ChatStreamRequest,
     cancel_requested: Arc<AtomicBool>,
@@ -149,7 +176,7 @@ fn run_stream_worker(
     if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
         fail_stream(
             &inner,
-            &app_handle,
+            &event_sink,
             &server_url,
             &stream_id,
             ChatFailureKind::Other,
@@ -168,28 +195,18 @@ fn run_stream_worker(
         "stream": true
     });
 
-    emit_event(
-        &app_handle,
-        ChatStreamEvent {
-            stream_id: stream_id.clone(),
-            event_type: "started".to_string(),
-            data: None,
-            state: ChatStreamState::Streaming,
-            error: None,
-        },
-    );
+    emit_event(&event_sink, ChatStreamEvent {
+        stream_id: stream_id.clone(),
+        event_type: "started".to_string(),
+        data: None,
+        state: ChatStreamState::Streaming,
+        error: None,
+    });
 
     let client = match Client::builder().build() {
         Ok(client) => client,
         Err(err) => {
-            fail_stream(
-                &inner,
-                &app_handle,
-                &endpoint,
-                &stream_id,
-                ChatFailureKind::Other,
-                format!("failed to build HTTP client: {err}"),
-            );
+            fail_stream(&inner, &event_sink, &endpoint, &stream_id, ChatFailureKind::Other, format!("failed to build HTTP client: {err}"));
             return;
         }
     };
@@ -197,30 +214,13 @@ fn run_stream_worker(
     let response = match client.post(&endpoint).json(&payload).send() {
         Ok(response) => response,
         Err(err) => {
-            fail_stream(
-                &inner,
-                &app_handle,
-                &endpoint,
-                &stream_id,
-                classify_reqwest_failure(&err),
-                err,
-            );
+            fail_stream(&inner, &event_sink, &endpoint, &stream_id, classify_reqwest_failure(&err), err);
             return;
         }
     };
 
     if !response.status().is_success() {
-        fail_stream(
-            &inner,
-            &app_handle,
-            &endpoint,
-            &stream_id,
-            ChatFailureKind::Other,
-            format!(
-                "chat stream request failed with HTTP status {}",
-                response.status()
-            ),
-        );
+        fail_stream(&inner, &event_sink, &endpoint, &stream_id, ChatFailureKind::Other, format!("chat stream request failed with HTTP status {}", response.status()));
         return;
     }
 
@@ -236,16 +236,13 @@ fn run_stream_worker(
                 None,
                 bytes_received,
             );
-            emit_event(
-                &app_handle,
-                ChatStreamEvent {
-                    stream_id: stream_id.clone(),
-                    event_type: "cancelled".to_string(),
-                    data: None,
-                    state: ChatStreamState::Cancelled,
-                    error: None,
-                },
-            );
+            emit_event(&event_sink, ChatStreamEvent {
+                stream_id: stream_id.clone(),
+                event_type: "cancelled".to_string(),
+                data: None,
+                state: ChatStreamState::Cancelled,
+                error: None,
+            });
             return;
         }
 
@@ -254,7 +251,7 @@ fn run_stream_worker(
             Err(err) => {
                 fail_stream(
                     &inner,
-                    &app_handle,
+                    &event_sink,
                     &endpoint,
                     &stream_id,
                     classify_stream_read_failure(&err),
@@ -282,16 +279,13 @@ fn run_stream_worker(
                 None,
                 bytes_received,
             );
-            emit_event(
-                &app_handle,
-                ChatStreamEvent {
-                    stream_id: stream_id.clone(),
-                    event_type: "completed".to_string(),
-                    data: None,
-                    state: ChatStreamState::Completed,
-                    error: None,
-                },
-            );
+            emit_event(&event_sink, ChatStreamEvent {
+                stream_id: stream_id.clone(),
+                event_type: "completed".to_string(),
+                data: None,
+                state: ChatStreamState::Completed,
+                error: None,
+            });
             return;
         }
 
@@ -303,16 +297,13 @@ fn run_stream_worker(
             None,
             bytes_received,
         );
-        emit_event(
-            &app_handle,
-            ChatStreamEvent {
-                stream_id: stream_id.clone(),
-                event_type: "chunk".to_string(),
-                data: Some(chunk),
-                state: ChatStreamState::Streaming,
-                error: None,
-            },
-        );
+        emit_event(&event_sink, ChatStreamEvent {
+            stream_id: stream_id.clone(),
+            event_type: "chunk".to_string(),
+            data: Some(chunk),
+            state: ChatStreamState::Streaming,
+            error: None,
+        });
     }
 
     set_state(
@@ -322,30 +313,22 @@ fn run_stream_worker(
         None,
         bytes_received,
     );
-    emit_event(
-        &app_handle,
-        ChatStreamEvent {
-            stream_id,
-            event_type: "completed".to_string(),
-            data: None,
-            state: ChatStreamState::Completed,
-            error: None,
-        },
-    );
+    emit_event(&event_sink, ChatStreamEvent {
+        stream_id,
+        event_type: "completed".to_string(),
+        data: None,
+        state: ChatStreamState::Completed,
+        error: None,
+    });
 }
 
-fn emit_event(app_handle: &AppHandle, event: ChatStreamEvent) {
-    if let Err(err) = app_handle.emit("chat_stream_event", &event) {
-        eprintln!(
-            "failed to emit chat_stream_event (stream_id={}, type={}): {err}",
-            event.stream_id, event.event_type
-        );
-    }
+fn emit_event(event_sink: &impl ChatEventSink, event: ChatStreamEvent) {
+    event_sink.emit_chat_event(event);
 }
 
 fn fail_stream(
     inner: &Arc<Mutex<ChatInner>>,
-    app_handle: &AppHandle,
+    event_sink: &impl ChatEventSink,
     endpoint: &str,
     stream_id: &str,
     kind: ChatFailureKind,
@@ -359,16 +342,13 @@ fn fail_stream(
         Some(error.clone()),
         0,
     );
-    emit_event(
-        app_handle,
-        ChatStreamEvent {
-            stream_id: stream_id.to_string(),
-            event_type: "error".to_string(),
-            data: None,
-            state: ChatStreamState::Failed,
-            error: Some(error),
-        },
-    );
+    emit_event(event_sink, ChatStreamEvent {
+        stream_id: stream_id.to_string(),
+        event_type: "error".to_string(),
+        data: None,
+        state: ChatStreamState::Failed,
+        error: Some(error),
+    });
 }
 
 fn set_state(

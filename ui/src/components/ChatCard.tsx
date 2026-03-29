@@ -7,6 +7,7 @@ export type ChatCardProps = {
   chatPrompt: string;
   chatStatuses: ChatStreamStatus[];
   chatLog: string[];
+  canUseBackend: boolean;
   isStartingChat: boolean;
   isCancellingChat: boolean;
   canCancelChat: boolean;
@@ -57,6 +58,7 @@ export function ChatCard({
   chatPrompt,
   chatStatuses,
   chatLog,
+  isDesktop,
   isStartingChat,
   isCancellingChat,
   canCancelChat,
@@ -70,6 +72,7 @@ export function ChatCard({
   onCancelGeneration,
 }: ChatCardProps) {
   const [copiedFlag, setCopiedFlag] = useState(false);
+  const isReadOnly = !canUseBackend;
 
   const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -125,7 +128,11 @@ export function ChatCard({
       </div>
       <label>
         Model
-        <input value={chatModel} onChange={(e) => onChatModelChange(e.target.value)} />
+        <input
+          value={chatModel}
+          onChange={(e) => onChatModelChange(e.target.value)}
+          disabled={isReadOnly}
+        />
       </label>
       <label>
         Prompt
@@ -134,16 +141,21 @@ export function ChatCard({
           onChange={(e) => onChatPromptChange(e.target.value)}
           onKeyDown={handlePromptKeyDown}
           rows={3}
+          disabled={isReadOnly}
         />
       </label>
       <div className="row">
-        <button type="button" onClick={() => void onStartChat()} disabled={isStartingChat}>
+        <button
+          type="button"
+          onClick={() => void onStartChat()}
+          disabled={isStartingChat || isReadOnly}
+        >
           {isStartingChat ? 'Starting...' : 'Start stream'}
         </button>
         <button
           type="button"
           onClick={() => void onCancelChat()}
-          disabled={!canCancelChat || isCancellingChat}
+          disabled={!canCancelChat || isCancellingChat || isReadOnly}
         >
           {isCancellingChat ? 'Cancelling...' : 'Cancel stream'}
         </button>

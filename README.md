@@ -46,6 +46,8 @@ npm --prefix ui run dev
 
 This starts the browser-only Vite app on the default port (`5173`). Tauri features are disabled in that mode.
 
+For remote browser mode against a Tauri backend, see [docs/migration/remote-mode.md](docs/migration/remote-mode.md).
+
 ### Build frontend
 
 ```powershell
@@ -70,6 +72,8 @@ cargo run --manifest-path src-tauri/Cargo.toml
 ## Data Directory
 
 The app stores user data (settings, presets, history, downloaded models) in Tauri's `app_data_dir()` under a `migration-data/` subdirectory.
+
+Remote browser mode stores its connection settings in browser local storage and uses `LLAMACPPDESK_REMOTE_BIND` plus `LLAMACPPDESK_REMOTE_TOKEN` on the backend host.
 
 | OS      | Path                                                             |
 |---------|------------------------------------------------------------------|

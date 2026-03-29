@@ -9,6 +9,7 @@ export type LlamaServerCardProps = {
   processStatus: LlamaProcessStatus;
   processHealth: LlamaServerHealthStatus | null;
   serverUrl: string;
+  canUseBackend: boolean;
   isCheckingHealth: boolean;
   isProcessTransitionBusy: boolean;
   isStartingProcess: boolean;
@@ -66,6 +67,7 @@ export function LlamaServerCard({
   processStatus,
   processHealth,
   serverUrl,
+  canUseBackend,
   isCheckingHealth,
   isProcessTransitionBusy,
   isStartingProcess,
@@ -89,6 +91,7 @@ export function LlamaServerCard({
       ? 'Healthy'
       : 'Unhealthy'
     : 'Not checked';
+  const isReadOnly = !canUseBackend;
   const processHealthClass = getHealthTone(processHealth?.healthy ?? null);
   const processHealthDetailTone = processHealth?.healthy
     ? 'success'
@@ -128,7 +131,7 @@ export function LlamaServerCard({
             type="button"
             className="secondary"
             onClick={() => void onCheckHealth()}
-            disabled={isCheckingHealth}
+            disabled={isCheckingHealth || isReadOnly}
           >
             {isCheckingHealth ? 'Checking...' : 'Check health'}
           </button>
@@ -164,21 +167,21 @@ export function LlamaServerCard({
         <button
           type="button"
           onClick={() => void onStartProcess()}
-          disabled={isProcessTransitionBusy || processStatus.running}
+          disabled={isProcessTransitionBusy || processStatus.running || isReadOnly}
         >
           {isStartingProcess ? 'Starting...' : 'Start'}
         </button>
         <button
           type="button"
           onClick={() => void onRestartProcess()}
-          disabled={isProcessTransitionBusy || !processStatus.running}
+          disabled={isProcessTransitionBusy || !processStatus.running || isReadOnly}
         >
           {isRestartingProcess ? 'Restarting...' : 'Restart'}
         </button>
         <button
           type="button"
           onClick={() => void onStopProcess()}
-          disabled={isProcessTransitionBusy || !processStatus.running}
+          disabled={isProcessTransitionBusy || !processStatus.running || isReadOnly}
         >
           {isStoppingProcess ? 'Stopping...' : 'Shutdown'}
         </button>
@@ -186,7 +189,11 @@ export function LlamaServerCard({
       <div className="panel">
         <div className="panel-header">
           <h3>Logs</h3>
-          <button type="button" onClick={() => void onClearLogs()} disabled={isClearingLogs}>
+          <button
+            type="button"
+            onClick={() => void onClearLogs()}
+            disabled={isClearingLogs || isReadOnly}
+          >
             {isClearingLogs ? 'Clearing...' : 'Clear logs'}
           </button>
         </div>

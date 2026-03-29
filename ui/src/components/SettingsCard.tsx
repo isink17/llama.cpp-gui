@@ -3,6 +3,11 @@ import type { Settings } from '../lib/tauri/api';
 export type SettingsCardProps = {
   settings: Settings;
   isSaving: boolean;
+  canUseBackend: boolean;
+  canBrowseFiles: boolean;
+  serverPathSourceLabel: string;
+  modelPathSourceLabel: string;
+  downloadFolderSourceLabel: string;
   onChange: (patch: Partial<Settings>) => void;
   onSave: () => void;
   onBrowseServerPath: () => void;
@@ -13,12 +18,19 @@ export type SettingsCardProps = {
 export function SettingsCard({
   settings,
   isSaving,
+  canUseBackend,
+  canBrowseFiles,
+  serverPathSourceLabel,
+  modelPathSourceLabel,
+  downloadFolderSourceLabel,
   onChange,
   onSave,
   onBrowseServerPath,
   onBrowseModelPath,
   onBrowseDownloadFolder,
 }: SettingsCardProps) {
+  const isReadOnly = !canUseBackend;
+
   return (
     <article className="card">
       <h2>Settings</h2>
@@ -29,11 +41,13 @@ export function SettingsCard({
             value={settings.llamaServerPath}
             onChange={(e) => onChange({ llamaServerPath: e.target.value })}
             placeholder="Path to llama-server executable"
+            disabled={isReadOnly}
           />
-          <button type="button" onClick={onBrowseServerPath}>
+          <button type="button" onClick={onBrowseServerPath} disabled={isReadOnly || !canBrowseFiles}>
             Browse...
           </button>
         </div>
+        <div className="field-source">{serverPathSourceLabel}</div>
       </label>
       <label>
         Model path
@@ -42,11 +56,13 @@ export function SettingsCard({
             value={settings.modelPath}
             onChange={(e) => onChange({ modelPath: e.target.value })}
             placeholder="Path to .gguf model file"
+            disabled={isReadOnly}
           />
-          <button type="button" onClick={onBrowseModelPath}>
+          <button type="button" onClick={onBrowseModelPath} disabled={isReadOnly || !canBrowseFiles}>
             Browse...
           </button>
         </div>
+        <div className="field-source">{modelPathSourceLabel}</div>
       </label>
       <div className="row">
         <label>
@@ -54,6 +70,7 @@ export function SettingsCard({
           <input
             value={settings.host}
             onChange={(e) => onChange({ host: e.target.value })}
+            disabled={isReadOnly}
           />
         </label>
         <label>
@@ -62,6 +79,7 @@ export function SettingsCard({
             type="number"
             value={settings.port}
             onChange={(e) => onChange({ port: Number(e.target.value) })}
+            disabled={isReadOnly}
           />
         </label>
       </div>
@@ -72,6 +90,7 @@ export function SettingsCard({
             type="number"
             value={settings.contextSize}
             onChange={(e) => onChange({ contextSize: Number(e.target.value) })}
+            disabled={isReadOnly}
           />
         </label>
         <label>
@@ -80,6 +99,7 @@ export function SettingsCard({
             type="number"
             value={settings.threads}
             onChange={(e) => onChange({ threads: Number(e.target.value) })}
+            disabled={isReadOnly}
           />
         </label>
         <label>
@@ -88,6 +108,7 @@ export function SettingsCard({
             type="number"
             value={settings.gpuLayers}
             onChange={(e) => onChange({ gpuLayers: Number(e.target.value) })}
+            disabled={isReadOnly}
           />
         </label>
       </div>
@@ -99,6 +120,7 @@ export function SettingsCard({
             step="0.1"
             value={settings.temperature}
             onChange={(e) => onChange({ temperature: Number(e.target.value) })}
+            disabled={isReadOnly}
           />
         </label>
         <label>
@@ -107,6 +129,7 @@ export function SettingsCard({
             type="number"
             value={settings.maxTokens}
             onChange={(e) => onChange({ maxTokens: Number(e.target.value) })}
+            disabled={isReadOnly}
           />
         </label>
       </div>
@@ -117,13 +140,23 @@ export function SettingsCard({
             value={settings.downloadFolder}
             onChange={(e) => onChange({ downloadFolder: e.target.value })}
             placeholder="Folder for downloaded models"
+            disabled={isReadOnly}
           />
-          <button type="button" onClick={onBrowseDownloadFolder}>
+          <button
+            type="button"
+            onClick={onBrowseDownloadFolder}
+            disabled={isReadOnly || !canBrowseFiles}
+          >
             Browse...
           </button>
         </div>
+        <div className="field-source">{downloadFolderSourceLabel}</div>
       </label>
-      <button type="button" onClick={() => void onSave()} disabled={isSaving}>
+      <button
+        type="button"
+        onClick={() => void onSave()}
+        disabled={isSaving || isReadOnly}
+      >
         {isSaving ? 'Saving...' : 'Save settings'}
       </button>
     </article>

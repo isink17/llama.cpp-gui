@@ -1,5 +1,5 @@
 use crate::core::models::DownloadStatus;
-use crate::state::app_state::AppState;
+use crate::state::app_state::SharedAppState;
 use std::collections::HashMap;
 use tauri::State;
 
@@ -72,7 +72,7 @@ fn get_download_statuses_with(
 
 #[tauri::command]
 pub fn start_download(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     source_url: String,
     destination_path: String,
     request_headers: Option<HashMap<String, String>>,
@@ -83,7 +83,7 @@ pub fn start_download(
 
 #[tauri::command]
 pub fn cancel_download(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     download_id: String,
 ) -> Result<DownloadStatus, String> {
     let downloader = state.inner().downloader.lock();
@@ -92,7 +92,7 @@ pub fn cancel_download(
 
 #[tauri::command]
 pub fn get_download_status(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     download_id: String,
 ) -> Result<DownloadStatus, String> {
     let downloader = state.inner().downloader.lock();
@@ -100,7 +100,7 @@ pub fn get_download_status(
 }
 
 #[tauri::command]
-pub fn get_download_statuses(state: State<'_, AppState>) -> Result<Vec<DownloadStatus>, String> {
+pub fn get_download_statuses(state: State<'_, SharedAppState>) -> Result<Vec<DownloadStatus>, String> {
     let downloader = state.inner().downloader.lock();
     get_download_statuses_with(&*downloader)
 }

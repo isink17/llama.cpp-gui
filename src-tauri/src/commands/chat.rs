@@ -1,5 +1,5 @@
 use crate::core::models::{ChatStreamRequest, ChatStreamStatus};
-use crate::state::app_state::AppState;
+use crate::state::app_state::SharedAppState;
 use tauri::{AppHandle, State};
 
 trait ChatCommandBackend {
@@ -76,7 +76,7 @@ fn get_chat_stream_statuses_with(
 #[tauri::command]
 pub fn start_chat_stream(
     app: AppHandle,
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     request: ChatStreamRequest,
 ) -> Result<ChatStreamStatus, String> {
     let chat = state.inner().chat.lock();
@@ -85,7 +85,7 @@ pub fn start_chat_stream(
 
 #[tauri::command]
 pub fn cancel_chat_stream(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     stream_id: String,
 ) -> Result<ChatStreamStatus, String> {
     let chat = state.inner().chat.lock();
@@ -94,7 +94,7 @@ pub fn cancel_chat_stream(
 
 #[tauri::command]
 pub fn get_chat_stream_status(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     stream_id: String,
 ) -> Result<ChatStreamStatus, String> {
     let chat = state.inner().chat.lock();
@@ -103,7 +103,7 @@ pub fn get_chat_stream_status(
 
 #[tauri::command]
 pub fn get_chat_stream_statuses(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
 ) -> Result<Vec<ChatStreamStatus>, String> {
     let chat = state.inner().chat.lock();
     get_chat_stream_statuses_with(&*chat)

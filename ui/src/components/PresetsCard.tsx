@@ -6,6 +6,7 @@ type PresetsCardProps = {
   presets: Preset[];
   presetDraft: PresetDraft;
   settings: Settings;
+  canUseBackend: boolean;
   onNewPreset: () => void;
   onResetPresetDraft: () => void;
   onPresetDraftChange: (preset: PresetDraft) => void;
@@ -27,9 +28,12 @@ export function PresetsCard({
   onApplyPreset,
   onEditPreset,
   onDeletePreset,
+  canUseBackend,
   isSaving = false,
   isDeletingPreset = () => false,
 }: PresetsCardProps) {
+  const isReadOnly = !canUseBackend;
+
   return (
     <article className="card">
       <div className="panel-header">
@@ -49,7 +53,11 @@ export function PresetsCard({
         />
       </label>
       <div className="row">
-        <button type="button" onClick={onSavePresetFromSettings} disabled={isSaving}>
+        <button
+          type="button"
+          onClick={onSavePresetFromSettings}
+          disabled={isSaving || isReadOnly}
+        >
           {isSaving ? 'Saving...' : 'Save current settings as preset'}
         </button>
         <button type="button" className="secondary" onClick={onResetPresetDraft}>
@@ -98,7 +106,7 @@ export function PresetsCard({
                     type="button"
                     className="danger"
                     onClick={() => onDeletePreset(preset.id)}
-                    disabled={isDeletingPreset(preset.id)}
+                    disabled={isDeletingPreset(preset.id) || isReadOnly}
                   >
                     {isDeletingPreset(preset.id) ? 'Deleting...' : 'Delete'}
                   </button>

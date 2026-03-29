@@ -10,6 +10,7 @@ This file defines subagent ownership for the Tauri multiplatform migration.
 - Every MR/PR must link its issue in the description (`Closes #<issue-number>`).
 - Feature branches merge into `feature/multiplatform_support` first.
 - Final consolidation MR/PR is `feature/multiplatform_support -> master`.
+- Use CodeGraph for repository discovery and code lookup before resorting to broad file scans. Prefer targeted searches against the index, and only scan the filesystem when the index does not have the needed context.
 
 ## Agent A: Backend Core (Rust/Tauri)
 

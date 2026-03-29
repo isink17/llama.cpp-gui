@@ -43,6 +43,8 @@ Status key:
 - [-] Chat screen baseline is wired through the typed Tauri API client
 - [-] Downloader screen baseline is wired
 - [-] Presets and history management baselines are wired
+- [-] Browser mode is explicit with remote setup/provenance labels
+- [-] Remote browser mode can control settings, presets, history, downloads, and chat
 
 ## Packaging and Delivery
 

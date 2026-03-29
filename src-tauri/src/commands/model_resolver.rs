@@ -1,10 +1,10 @@
 use crate::core::models::ResolvedModelDownload;
-use crate::state::app_state::AppState;
+use crate::state::app_state::SharedAppState;
 use tauri::State;
 
 #[tauri::command]
 pub fn resolve_model_reference(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     source: String,
     input: String,
     hf_token: Option<String>,
@@ -15,7 +15,7 @@ pub fn resolve_model_reference(
 
 #[tauri::command]
 pub fn list_hugging_face_files(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     input: String,
     hf_token: Option<String>,
 ) -> Result<Vec<String>, String> {
@@ -24,7 +24,7 @@ pub fn list_hugging_face_files(
 }
 
 #[tauri::command]
-pub fn list_ollama_tags(state: State<'_, AppState>, input: String) -> Result<Vec<String>, String> {
+pub fn list_ollama_tags(state: State<'_, SharedAppState>, input: String) -> Result<Vec<String>, String> {
     let resolver = state.inner().model_resolver.lock();
     resolver.list_ollama_tags(&input)
 }
