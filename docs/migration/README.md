@@ -62,3 +62,4 @@ Frontend wiring is still a baseline bridge in `ui/src/lib/tauri/index.ts` and `u
 
 - `parity-checklist.md`: feature checklist for the Tauri app
 - `runbook.md`: end-to-end execution workflow for migration work items
+- `remote-mode.md`: browser mode, remote backend setup, and security notes

@@ -1,30 +1,38 @@
 use crate::core::models::{HistoryEntry, Preset, Settings, MAX_TEMPERATURE, MAX_TOKENS_LIMIT};
-use crate::state::app_state::AppState;
+use crate::state::app_state::SharedAppState;
+use crate::state::remote_events::RemoteEventKind;
 use tauri::State;
 
 #[tauri::command]
-pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
+pub fn get_settings(state: State<'_, SharedAppState>) -> Result<Settings, String> {
     let persistence = state.persistence.lock();
     persistence.load_settings().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(), String> {
+pub fn save_settings(state: State<'_, SharedAppState>, settings: Settings) -> Result<(), String> {
     validate_settings(&settings)?;
     let persistence = state.persistence.lock();
-    persistence
+    let result = persistence
         .save_settings(&settings)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    if result.is_ok() {
+        state.publish_remote_event(RemoteEventKind::Settings, settings.clone());
+    }
+    result
 }
 
 #[tauri::command]
-pub fn get_presets(state: State<'_, AppState>) -> Result<Vec<Preset>, String> {
+pub fn get_presets(state: State<'_, SharedAppState>) -> Result<Vec<Preset>, String> {
     let persistence = state.persistence.lock();
     persistence.load_presets().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn save_preset(state: State<'_, AppState>, preset: Preset) -> Result<Vec<Preset>, String> {
+pub fn save_preset(
+    state: State<'_, SharedAppState>,
+    preset: Preset,
+) -> Result<Vec<Preset>, String> {
     validate_preset(&preset)?;
     let persistence = state.persistence.lock();
     let mut presets = persistence.load_presets().map_err(|e| e.to_string())?;
@@ -35,54 +43,73 @@ pub fn save_preset(state: State<'_, AppState>, preset: Preset) -> Result<Vec<Pre
         presets.push(preset);
     }
 
-    persistence
+    let result = persistence
         .save_presets(&presets)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    if result.is_ok() {
+        state.publish_remote_event(RemoteEventKind::Presets, presets.clone());
+    }
+    result?;
     Ok(presets)
 }
 
 #[tauri::command]
-pub fn delete_preset(state: State<'_, AppState>, preset_id: String) -> Result<Vec<Preset>, String> {
+pub fn delete_preset(
+    state: State<'_, SharedAppState>,
+    preset_id: String,
+) -> Result<Vec<Preset>, String> {
     let preset_id = normalize_preset_id(preset_id)?;
 
     let persistence = state.persistence.lock();
     let mut presets = persistence.load_presets().map_err(|e| e.to_string())?;
 
     presets.retain(|item| item.id != preset_id);
-    persistence
+    let result = persistence
         .save_presets(&presets)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    if result.is_ok() {
+        state.publish_remote_event(RemoteEventKind::Presets, presets.clone());
+    }
+    result?;
 
     Ok(presets)
 }
 
 #[tauri::command]
-pub fn get_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>, String> {
+pub fn get_history(state: State<'_, SharedAppState>) -> Result<Vec<HistoryEntry>, String> {
     let persistence = state.persistence.lock();
     persistence.load_history().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn append_history(
-    state: State<'_, AppState>,
+    state: State<'_, SharedAppState>,
     entry: HistoryEntry,
 ) -> Result<Vec<HistoryEntry>, String> {
     validate_history_entry(&entry)?;
     let persistence = state.persistence.lock();
     let mut history = persistence.load_history().map_err(|e| e.to_string())?;
     history.push(entry);
-    persistence
+    let result = persistence
         .save_history(&history)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    if result.is_ok() {
+        state.publish_remote_event(RemoteEventKind::History, history.clone());
+    }
+    result?;
     Ok(history)
 }
 
 #[tauri::command]
-pub fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
+pub fn clear_history(state: State<'_, SharedAppState>) -> Result<(), String> {
     let persistence = state.persistence.lock();
-    persistence
+    let result = persistence
         .save_history(&Vec::<HistoryEntry>::new())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    if result.is_ok() {
+        state.publish_remote_event(RemoteEventKind::History, Vec::<HistoryEntry>::new());
+    }
+    result
 }
 
 fn validate_settings(settings: &Settings) -> Result<(), String> {

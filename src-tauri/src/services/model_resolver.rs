@@ -104,30 +104,48 @@ impl ModelResolverService {
             }
         }
 
-        let url = format!("https://registry.ollama.ai/v2/{repo_path}/tags/list");
+        let registry_url = format!("https://registry.ollama.ai/v2/{repo_path}/tags/list");
         let response = self
             .client
-            .get(&url)
+            .get(&registry_url)
             .send()
             .map_err(|e| format!("failed to fetch Ollama tags: {e}"))?;
 
-        if !response.status().is_success() {
-            return Err(format!(
-                "Ollama tags request failed with HTTP status {}",
-                response.status()
-            ));
-        }
+        let tags = if response.status().is_success() {
+            let tag_list: OllamaTagList = response
+                .json()
+                .map_err(|e| format!("failed to parse Ollama tags response: {e}"))?;
+            tag_list
+                .tags
+                .unwrap_or_default()
+                .into_iter()
+                .map(|t| t.name)
+                .collect()
+        } else {
+            let library_url = format!("https://ollama.com/{repo_path}/tags");
+            let fallback = self
+                .client
+                .get(&library_url)
+                .send()
+                .map_err(|e| format!("failed to fetch Ollama tags page: {e}"))?;
 
-        let tag_list: OllamaTagList = response
-            .json()
-            .map_err(|e| format!("failed to parse Ollama tags response: {e}"))?;
+            if !fallback.status().is_success() {
+                return Err(format!(
+                    "Ollama tags request failed with HTTP status {} (registry) and {} (library)",
+                    response.status(),
+                    fallback.status()
+                ));
+            }
 
-        let tags: Vec<String> = tag_list
-            .tags
-            .unwrap_or_default()
-            .into_iter()
-            .map(|t| t.name)
-            .collect();
+            let body = fallback
+                .text()
+                .map_err(|e| format!("failed to read Ollama tags page: {e}"))?;
+            let tags = extract_ollama_tags_from_body(&body, &repo_path);
+            if tags.is_empty() {
+                return Err("Ollama tags page did not contain any tags".to_string());
+            }
+            tags
+        };
 
         // Store in cache with 5-minute TTL
         {
@@ -414,6 +432,33 @@ fn parse_ollama_input(input: &str) -> (String, String) {
     (repo_path, tag)
 }
 
+fn extract_ollama_tags_from_body(body: &str, repo_path: &str) -> Vec<String> {
+    let needle = format!("/{repo_path}:");
+    let mut tags = Vec::new();
+    let mut index = 0;
+
+    while let Some(pos) = body[index..].find(&needle) {
+        let start = index + pos + needle.len();
+        let mut end = start;
+        for ch in body[start..].chars() {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                end += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if end > start {
+            let tag = body[start..end].to_string();
+            if !tags.contains(&tag) {
+                tags.push(tag);
+            }
+        }
+        index = start;
+    }
+
+    tags
+}
+
 fn build_hf_auth_headers(token: Option<&str>) -> Option<HashMap<String, String>> {
     token.map(|t| {
         let mut headers = HashMap::new();
@@ -569,6 +614,19 @@ mod tests {
     }
 
     #[test]
+    fn parse_ollama_repo_path_bare_library_model() {
+        assert_eq!(parse_ollama_repo_path("llama3"), "library/llama3");
+    }
+
+    #[test]
+    fn parse_ollama_repo_path_library_url() {
+        assert_eq!(
+            parse_ollama_repo_path("https://ollama.com/library/llama3"),
+            "library/llama3"
+        );
+    }
+
+    #[test]
     fn parse_ollama_repo_path_with_tag_stripped() {
         assert_eq!(parse_ollama_repo_path("llama2:13b"), "library/llama2");
     }
@@ -638,6 +696,17 @@ mod tests {
         // Both score 0, max_by_key picks last of ties; both are 0 so first max wins
         let result = pick_best_gguf_file(&files);
         assert!(result == "alpha.gguf" || result == "beta.gguf");
+    }
+
+    #[test]
+    fn extract_ollama_tags_from_body_finds_tags() {
+        let body = r#"
+            <a href="/library/llama3:latest">latest</a>
+            <a href="/library/llama3:8b">8b</a>
+            <a href="/library/llama3:70b">70b</a>
+        "#;
+        let tags = extract_ollama_tags_from_body(body, "library/llama3");
+        assert_eq!(tags, vec!["latest", "8b", "70b"]);
     }
 
     #[test]

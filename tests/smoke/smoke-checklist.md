@@ -34,6 +34,13 @@ Run this checklist for each migration PR when relevant.
 - [ ] Progress updates are visible
 - [ ] Cancel works
 
+## Remote Mode
+
+- [ ] Remote backend requires a bearer token
+- [ ] Browser mode connects to a configured remote backend
+- [ ] Browser mode shows remote setup provenance and connection state
+- [ ] Non-local backend binding prints a security warning on startup
+
 ## CI/Artifacts (when touched)
 
 - [ ] Relevant CI workflow passes

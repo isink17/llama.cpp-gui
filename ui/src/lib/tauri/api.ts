@@ -1,5 +1,15 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri, type InvokeArgs } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import {
+  clearRemoteApiConfig,
+  getRemoteApiConfig,
+  getRemoteApiDefaults,
+  hasRemoteApiConfig,
+  remoteRequest,
+  subscribeToRemoteChatEvents,
+  setRemoteApiConfig,
+  type RemoteApiConfig,
+} from '../remote/client';
 
 export type Settings = {
   llamaServerPath: string;
@@ -136,6 +146,7 @@ export type CheckLlamaServerHealthRequest = {
 export type StartDownloadRequest = {
   sourceUrl: string;
   destinationPath: string;
+  requestHeaders?: Record<string, string> | null;
 };
 
 export type CancelDownloadRequest = {
@@ -150,52 +161,134 @@ export type CancelChatStreamRequest = {
   streamId: string;
 };
 
-export const getSettings = () => invoke<Settings>('get_settings');
+const TAURI_RUNTIME_ERROR =
+  'Tauri runtime is not available. Launch the app through the Tauri shell instead of the Vite dev server.';
+
+const ensureTauriRuntime = () => {
+  if (!isTauri()) {
+    throw new Error(TAURI_RUNTIME_ERROR);
+  }
+};
+
+const invokeTauri = <T>(command: string, args?: InvokeArgs) => {
+  ensureTauriRuntime();
+  return invoke<T>(command, args);
+};
+
+const browserUnsupported = (feature: string) => {
+  throw new Error(`${feature} is only available in the desktop runtime.`);
+};
+
+export {
+  clearRemoteApiConfig,
+  getRemoteApiConfig,
+  getRemoteApiDefaults,
+  hasRemoteApiConfig,
+  setRemoteApiConfig,
+};
+export type { RemoteApiConfig };
+
+export const getSettings = () =>
+  isTauri() ? invokeTauri<Settings>('get_settings') : remoteRequest<Settings>('/api/settings');
 
 export const saveSettings = (settings: Settings) =>
-  invoke<void>('save_settings', { settings } satisfies SaveSettingsRequest);
+  isTauri()
+    ? invokeTauri<void>('save_settings', { settings } satisfies SaveSettingsRequest)
+    : remoteRequest<Settings>('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      }).then(() => {});
 
-export const getPresets = () => invoke<Preset[]>('get_presets');
+export const getPresets = () =>
+  isTauri() ? invokeTauri<Preset[]>('get_presets') : remoteRequest<Preset[]>('/api/presets');
 
 export const savePreset = (request: SavePresetRequest) =>
-  invoke<SavePresetResponse>('save_preset', request);
+  isTauri()
+    ? invokeTauri<SavePresetResponse>('save_preset', request)
+    : remoteRequest<SavePresetResponse>('/api/presets', {
+        method: 'POST',
+        body: JSON.stringify(request.preset),
+      });
 
 export const deletePreset = (request: DeletePresetRequest) =>
-  invoke<DeletePresetResponse>('delete_preset', request);
+  isTauri()
+    ? invokeTauri<DeletePresetResponse>('delete_preset', request)
+    : remoteRequest<DeletePresetResponse>(`/api/presets/${encodeURIComponent(request.presetId)}`, {
+        method: 'DELETE',
+      });
 
-export const getHistory = () => invoke<HistoryEntry[]>('get_history');
+export const getHistory = () =>
+  isTauri() ? invokeTauri<HistoryEntry[]>('get_history') : remoteRequest<HistoryEntry[]>('/api/history');
 
 export const appendHistory = (request: AppendHistoryRequest) =>
-  invoke<AppendHistoryResponse>('append_history', request);
+  isTauri()
+    ? invokeTauri<AppendHistoryResponse>('append_history', request)
+    : remoteRequest<AppendHistoryResponse>('/api/history', {
+        method: 'POST',
+        body: JSON.stringify(request.entry),
+      });
 
-export const clearHistory = () => invoke<ClearHistoryResponse>('clear_history');
+export const clearHistory = () =>
+  isTauri()
+    ? invokeTauri<ClearHistoryResponse>('clear_history')
+    : remoteRequest<void>('/api/history', {
+        method: 'DELETE',
+      });
 
 export const subscribeToChatStreamEvent = (
   handler: (event: ChatStreamEvent) => void,
 ): Promise<UnlistenFn> =>
-  listen<ChatStreamEvent>('chat_stream_event', (event) => {
-    handler(event.payload);
-  });
+  isTauri()
+    ? listen<ChatStreamEvent>('chat_stream_event', (event) => {
+        handler(event.payload);
+      })
+    : subscribeToRemoteChatEvents((event) => {
+        handler(event.payload as ChatStreamEvent);
+      });
 
 export const onChatStreamEvent = subscribeToChatStreamEvent;
 
 export const getLlamaServerStatus = () =>
-  invoke<LlamaProcessStatus>('get_llama_server_status');
+  isTauri()
+    ? invokeTauri<LlamaProcessStatus>('get_llama_server_status')
+    : remoteRequest<LlamaProcessStatus>('/api/process/status');
 
 export const startLlamaServer = (request: StartLlamaServerRequest) =>
-  invoke<LlamaProcessStatus>('start_llama_server', request);
+  isTauri()
+    ? invokeTauri<LlamaProcessStatus>('start_llama_server', request)
+    : remoteRequest<LlamaProcessStatus>('/api/process/start', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
 
 export const stopLlamaServer = () =>
-  invoke<LlamaProcessStatus>('stop_llama_server');
+  isTauri()
+    ? invokeTauri<LlamaProcessStatus>('stop_llama_server')
+    : remoteRequest<LlamaProcessStatus>('/api/process/stop', {
+        method: 'POST',
+      });
 
 export const getLlamaServerLogs = (request: GetLlamaServerLogsRequest = {}) =>
-  invoke<string[]>('get_llama_server_logs', request);
+  isTauri()
+    ? invokeTauri<string[]>('get_llama_server_logs', request)
+    : remoteRequest<string[]>(
+        `/api/process/logs${request.limit !== undefined ? `?limit=${encodeURIComponent(String(request.limit))}` : ''}`,
+      );
 
 export const clearLlamaServerLogs = () =>
-  invoke<void>('clear_llama_server_logs');
+  isTauri()
+    ? invokeTauri<void>('clear_llama_server_logs')
+    : remoteRequest<void>('/api/process/logs', {
+        method: 'DELETE',
+      });
 
 export const checkLlamaServerHealth = (request: CheckLlamaServerHealthRequest) =>
-  invoke<LlamaServerHealthStatus>('check_llama_server_health', request);
+  isTauri()
+    ? invokeTauri<LlamaServerHealthStatus>('check_llama_server_health', request)
+    : remoteRequest<LlamaServerHealthStatus>('/api/process/health', {
+        method: 'POST',
+        body: JSON.stringify({ url: request.url }),
+      });
 
 export const getLlamaServerHealth = checkLlamaServerHealth;
 
@@ -205,25 +298,56 @@ export type WaitForServerReadyRequest = {
 };
 
 export const waitForServerReady = (request: WaitForServerReadyRequest) =>
-  invoke<LlamaServerHealthStatus>('wait_for_server_ready', request);
+  isTauri()
+    ? invokeTauri<LlamaServerHealthStatus>('wait_for_server_ready', request)
+    : remoteRequest<LlamaServerHealthStatus>('/api/process/wait-ready', {
+        method: 'POST',
+        body: JSON.stringify({
+          serverUrl: request.serverUrl,
+          timeoutSecs: request.timeoutSecs ?? null,
+        }),
+      });
 
 export const getDownloadStatuses = () =>
-  invoke<DownloadStatus[]>('get_download_statuses');
+  isTauri()
+    ? invokeTauri<DownloadStatus[]>('get_download_statuses')
+    : remoteRequest<DownloadStatus[]>('/api/downloads');
 
 export const startDownload = (request: StartDownloadRequest) =>
-  invoke<DownloadStatus>('start_download', request);
+  isTauri()
+    ? invokeTauri<DownloadStatus>('start_download', request)
+    : remoteRequest<DownloadStatus>('/api/downloads', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
 
 export const cancelDownload = (request: CancelDownloadRequest) =>
-  invoke<DownloadStatus>('cancel_download', request);
+  isTauri()
+    ? invokeTauri<DownloadStatus>('cancel_download', request)
+    : remoteRequest<DownloadStatus>(`/api/downloads/${encodeURIComponent(request.downloadId)}`, {
+        method: 'DELETE',
+      });
 
 export const getChatStreamStatuses = () =>
-  invoke<ChatStreamStatus[]>('get_chat_stream_statuses');
+  isTauri()
+    ? invokeTauri<ChatStreamStatus[]>('get_chat_stream_statuses')
+    : remoteRequest<ChatStreamStatus[]>('/api/chat/statuses');
 
 export const startChatStream = (request: StartChatStreamRequest) =>
-  invoke<ChatStreamStatus>('start_chat_stream', request);
+  isTauri()
+    ? invokeTauri<ChatStreamStatus>('start_chat_stream', request)
+    : remoteRequest<ChatStreamStatus>('/api/chat/start', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
 
 export const cancelChatStream = (request: CancelChatStreamRequest) =>
-  invoke<ChatStreamStatus>('cancel_chat_stream', request);
+  isTauri()
+    ? invokeTauri<ChatStreamStatus>('cancel_chat_stream', request)
+    : remoteRequest<ChatStreamStatus>('/api/chat/cancel', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
 
 export type ResolvedModelDownload = {
   downloadUrl: string;
@@ -247,13 +371,19 @@ export type ListOllamaTagsRequest = {
 };
 
 export const resolveModelReference = (request: ResolveModelReferenceRequest) =>
-  invoke<ResolvedModelDownload>('resolve_model_reference', request);
+  isTauri()
+    ? invokeTauri<ResolvedModelDownload>('resolve_model_reference', request)
+    : browserUnsupported('Model resolution');
 
 export const listHuggingFaceFiles = (request: ListHuggingFaceFilesRequest) =>
-  invoke<string[]>('list_hugging_face_files', request);
+  isTauri()
+    ? invokeTauri<string[]>('list_hugging_face_files', request)
+    : browserUnsupported('Model resolution');
 
 export const listOllamaTags = (request: ListOllamaTagsRequest) =>
-  invoke<string[]>('list_ollama_tags', request);
+  isTauri()
+    ? invokeTauri<string[]>('list_ollama_tags', request)
+    : browserUnsupported('Model resolution');
 
 export type PickFileRequest = {
   title: string;
@@ -265,7 +395,7 @@ export type PickFolderRequest = {
 };
 
 export const pickFile = (request: PickFileRequest) =>
-  invoke<string | null>('pick_file', request);
+  isTauri() ? invokeTauri<string | null>('pick_file', request) : browserUnsupported('File picker');
 
 export const pickFolder = (request: PickFolderRequest) =>
-  invoke<string | null>('pick_folder', request);
+  isTauri() ? invokeTauri<string | null>('pick_folder', request) : browserUnsupported('Folder picker');

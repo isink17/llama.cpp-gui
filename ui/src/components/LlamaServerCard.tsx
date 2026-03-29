@@ -9,13 +9,16 @@ export type LlamaServerCardProps = {
   processStatus: LlamaProcessStatus;
   processHealth: LlamaServerHealthStatus | null;
   serverUrl: string;
+  canUseBackend: boolean;
   isCheckingHealth: boolean;
   isProcessTransitionBusy: boolean;
   isStartingProcess: boolean;
+  isRestartingProcess: boolean;
   isStoppingProcess: boolean;
   isClearingLogs: boolean;
   onCheckHealth: () => void;
   onStartProcess: () => void;
+  onRestartProcess: () => void;
   onStopProcess: () => void;
   onClearLogs: () => void;
   llamaLogs: string[];
@@ -64,13 +67,16 @@ export function LlamaServerCard({
   processStatus,
   processHealth,
   serverUrl,
+  canUseBackend,
   isCheckingHealth,
   isProcessTransitionBusy,
   isStartingProcess,
+  isRestartingProcess,
   isStoppingProcess,
   isClearingLogs,
   onCheckHealth,
   onStartProcess,
+  onRestartProcess,
   onStopProcess,
   onClearLogs,
   llamaLogs,
@@ -85,6 +91,7 @@ export function LlamaServerCard({
       ? 'Healthy'
       : 'Unhealthy'
     : 'Not checked';
+  const isReadOnly = !canUseBackend;
   const processHealthClass = getHealthTone(processHealth?.healthy ?? null);
   const processHealthDetailTone = processHealth?.healthy
     ? 'success'
@@ -121,9 +128,10 @@ export function LlamaServerCard({
         <div className="panel-header">
           <h3>Health</h3>
           <button
+            type="button"
             className="secondary"
             onClick={() => void onCheckHealth()}
-            disabled={isCheckingHealth}
+            disabled={isCheckingHealth || isReadOnly}
           >
             {isCheckingHealth ? 'Checking...' : 'Check health'}
           </button>
@@ -156,17 +164,36 @@ export function LlamaServerCard({
       </div>
       <div className="hint">Server: {serverUrl}</div>
       <div className="row">
-        <button onClick={() => void onStartProcess()} disabled={isProcessTransitionBusy}>
+        <button
+          type="button"
+          onClick={() => void onStartProcess()}
+          disabled={isProcessTransitionBusy || processStatus.running || isReadOnly}
+        >
           {isStartingProcess ? 'Starting...' : 'Start'}
         </button>
-        <button onClick={() => void onStopProcess()} disabled={isProcessTransitionBusy}>
-          {isStoppingProcess ? 'Stopping...' : 'Stop'}
+        <button
+          type="button"
+          onClick={() => void onRestartProcess()}
+          disabled={isProcessTransitionBusy || !processStatus.running || isReadOnly}
+        >
+          {isRestartingProcess ? 'Restarting...' : 'Restart'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void onStopProcess()}
+          disabled={isProcessTransitionBusy || !processStatus.running || isReadOnly}
+        >
+          {isStoppingProcess ? 'Stopping...' : 'Shutdown'}
         </button>
       </div>
       <div className="panel">
         <div className="panel-header">
           <h3>Logs</h3>
-          <button onClick={() => void onClearLogs()} disabled={isClearingLogs}>
+          <button
+            type="button"
+            onClick={() => void onClearLogs()}
+            disabled={isClearingLogs || isReadOnly}
+          >
             {isClearingLogs ? 'Clearing...' : 'Clear logs'}
           </button>
         </div>

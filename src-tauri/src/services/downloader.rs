@@ -1,6 +1,6 @@
 use crate::core::models::{DownloadState, DownloadStatus};
 use reqwest::blocking::Client;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read, Write};
@@ -49,6 +49,7 @@ impl DownloaderService {
         &self,
         source_url: String,
         destination_path: String,
+        request_headers: Option<HashMap<String, String>>,
     ) -> Result<DownloadStatus, String> {
         let source_url = source_url.trim().to_string();
         if source_url.is_empty() {
@@ -159,6 +160,7 @@ impl DownloaderService {
                 worker_destination,
                 temp_path,
                 cancel_requested,
+                request_headers,
             );
         });
 
@@ -210,6 +212,7 @@ fn run_download_worker(
     destination_path: PathBuf,
     temp_path: PathBuf,
     cancel_requested: Arc<AtomicBool>,
+    request_headers: Option<HashMap<String, String>>,
 ) {
     let client = match Client::builder().build() {
         Ok(client) => client,
@@ -226,7 +229,14 @@ fn run_download_worker(
         }
     };
 
-    let mut response = match client.get(&source_url).send() {
+    let mut request = client.get(&source_url);
+    if let Some(headers) = request_headers {
+        for (name, value) in headers {
+            request = request.header(name, value);
+        }
+    }
+
+    let mut response = match request.send() {
         Ok(response) => response,
         Err(err) => {
             update_status(&inner, &download_id, |status| {
@@ -487,7 +497,11 @@ mod tests {
         let destination = unique_temp_dir("downloader-empty-source").join("model.bin");
 
         let err = service
-            .start_download("   ".to_string(), destination.to_string_lossy().to_string())
+            .start_download(
+                "   ".to_string(),
+                destination.to_string_lossy().to_string(),
+                None,
+            )
             .expect_err("expected empty source_url to fail");
 
         assert_eq!(err, "source_url cannot be empty");
@@ -502,6 +516,7 @@ mod tests {
             .start_download(
                 "ftp://example.com/model.bin".to_string(),
                 destination.to_string_lossy().to_string(),
+                None,
             )
             .expect_err("expected non-http source_url to fail");
 
@@ -516,6 +531,7 @@ mod tests {
             .start_download(
                 "https://example.com/model.bin".to_string(),
                 "   ".to_string(),
+                None,
             )
             .expect_err("expected empty destination_path to fail");
 
@@ -543,6 +559,7 @@ mod tests {
             .start_download(
                 "https://example.com/model.bin".to_string(),
                 destination_str.clone(),
+                None,
             )
             .expect_err("expected duplicate destination to fail");
 
@@ -589,6 +606,7 @@ mod tests {
             .start_download(
                 "https://example.com/model.bin".to_string(),
                 destination.to_string_lossy().to_string(),
+                None,
             )
             .expect_err("expected existing destination_path to fail");
 

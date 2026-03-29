@@ -1,5 +1,6 @@
 mod commands;
 mod core;
+mod remote_api;
 mod services;
 mod state;
 
@@ -27,6 +28,7 @@ use services::model_resolver::ModelResolverService;
 use services::persistence::PersistenceService;
 use services::process_manager::ProcessManager;
 use state::app_state::AppState;
+use std::sync::Arc;
 use tauri::Manager;
 
 #[tauri::command]
@@ -52,14 +54,22 @@ pub fn run() {
             let downloader = DownloaderService::new();
             let chat = ChatService::new();
             let model_resolver = ModelResolverService::new().map_err(|e| e.to_string())?;
-
-            app.manage(AppState::new(
+            let app_state = Arc::new(AppState::new(
                 service,
                 process_manager,
                 downloader,
                 chat,
                 model_resolver,
             ));
+
+            app.manage(Arc::clone(&app_state));
+
+            if let Some(config) =
+                remote_api::RemoteApiConfig::from_env().map_err(|e| e.to_string())?
+            {
+                remote_api::spawn_remote_api_server(Arc::clone(&app_state), config)
+                    .map_err(|e| e.to_string())?;
+            }
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("LlamaCppDesk");

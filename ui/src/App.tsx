@@ -5,7 +5,10 @@ import {
   cancelDownload as cancelDownloadCommand,
   clearHistory as clearHistoryCommand,
   clearLlamaServerLogs,
+  clearRemoteApiConfig,
   deletePreset as deletePresetCommand,
+  getRemoteApiDefaults,
+  getRemoteApiConfig,
   getChatStreamStatuses,
   getDownloadStatuses,
   getHistory,
@@ -25,6 +28,7 @@ import {
   pickFile,
   pickFolder,
   resolveModelReference,
+  setRemoteApiConfig,
   listHuggingFaceFiles,
   listOllamaTags,
   type ChatStreamEvent,
@@ -36,7 +40,9 @@ import {
   type Preset,
   type Settings,
 } from './lib/tauri/api';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RemoteApiCard } from './components/RemoteApiCard';
 import { SettingsCard } from './components/SettingsCard';
 import { LlamaServerCard } from './components/LlamaServerCard';
 import { PresetsCard } from './components/PresetsCard';
@@ -131,6 +137,49 @@ function App() {
   const [message, setMessage] = useState('');
   const [busyActions, setBusyActions] = useState<Record<string, boolean>>({});
   const busyActionLocks = useRef(new Set<string>());
+  const isDesktop = tauriBridge.mode === 'desktop';
+  const initialRemoteApiConfig = getRemoteApiConfig();
+  const defaultRemoteApiConfig = getRemoteApiDefaults();
+  const defaultRemoteApiBaseUrl =
+    initialRemoteApiConfig?.baseUrl ??
+    defaultRemoteApiConfig?.baseUrl ??
+    (isDesktop ? '' : 'http://127.0.0.1:8080');
+  const baseUrlSourceLabel = initialRemoteApiConfig?.baseUrl
+    ? 'Saved locally'
+    : defaultRemoteApiConfig?.baseUrl
+      ? 'Env default'
+      : 'Local fallback';
+  const tokenSourceLabel = initialRemoteApiConfig?.token
+    ? 'Saved locally'
+    : defaultRemoteApiConfig?.token
+      ? 'Env default'
+      : 'Not set';
+  const fieldSourceLabel = (value: string) =>
+    value.trim()
+      ? isDesktop
+        ? 'Saved in app data'
+        : 'Loaded from remote backend'
+      : 'Not set';
+  const [remoteApiBaseUrl, setRemoteApiBaseUrl] = useState(
+    defaultRemoteApiBaseUrl,
+  );
+  const [remoteApiToken, setRemoteApiToken] = useState(
+    initialRemoteApiConfig?.token ?? defaultRemoteApiConfig?.token ?? '',
+  );
+  const [remoteApiConfigured, setRemoteApiConfigured] = useState(
+    initialRemoteApiConfig !== null,
+  );
+  const canUseBackend = isDesktop || remoteApiConfigured;
+  const modeLabel = isDesktop
+    ? 'Desktop runtime'
+    : remoteApiConfigured
+      ? 'Browser mode'
+      : 'Browser mode (remote API not configured)';
+  const connectionLabel = isDesktop
+    ? 'Local Tauri'
+    : remoteApiConfigured
+      ? 'Remote connected'
+      : 'Remote disconnected';
 
   const activeStream = useMemo(
     () => chatStatuses.find((item) => item.state === 'streaming'),
@@ -262,6 +311,14 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
+    if (!canUseBackend) {
+      setRefreshIssue('Browser mode: configure the remote API to enable backend access.');
+      setMessage('Browser mode is waiting for a remote API base URL and token.');
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const listenPromise = subscribeToChatStreamEvent(
       (event: ChatStreamEvent) => {
         if (event.eventType === 'chunk' && event.data) {
@@ -324,7 +381,45 @@ function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       void listenPromise.then((dispose) => dispose());
     };
-  }, [refreshAll, refreshDynamic, refreshStatic, safeErrorMessage]);
+  }, [canUseBackend, refreshAll, refreshDynamic, refreshStatic, safeErrorMessage]);
+
+  const saveRemoteApi = async () => {
+    await withBusyAction('saveRemoteApi', async () => {
+      try {
+        const baseUrl = remoteApiBaseUrl.trim();
+        const token = remoteApiToken.trim();
+        if (!baseUrl || !token) {
+          setMessage('Remote API base URL and token are required.');
+          return;
+        }
+
+        const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+        setRemoteApiConfig({ baseUrl: normalizedBaseUrl, token });
+        setRemoteApiConfigured(true);
+        setRemoteApiBaseUrl(normalizedBaseUrl);
+        setRemoteApiToken(token);
+        setRefreshIssue(null);
+        setMessage('Remote API config saved.');
+      } catch (error) {
+        setMessage(safeErrorMessage(error));
+      }
+    });
+  };
+
+  const clearRemoteApi = async () => {
+    await withBusyAction('clearRemoteApi', async () => {
+      try {
+        clearRemoteApiConfig();
+        setRemoteApiBaseUrl('');
+        setRemoteApiToken('');
+        setRemoteApiConfigured(false);
+        setRefreshIssue('Browser mode: configure the remote API to enable backend access.');
+        setMessage('Remote API config cleared.');
+      } catch (error) {
+        setMessage(safeErrorMessage(error));
+      }
+    });
+  };
 
   const saveSettings = async () => {
     await withBusyAction('saveSettings', async () => {
@@ -482,6 +577,52 @@ function App() {
         } catch (readyError) {
           setMessage(`Server started but not ready: ${safeErrorMessage(readyError)}`);
         }
+      } catch (error) {
+        setMessage(safeErrorMessage(error));
+      }
+    });
+  };
+
+  const restartProcess = async () => {
+    await withBusyAction('restartProcess', async () => {
+      try {
+        const stoppedStatus = await stopLlamaServerCommand();
+        setProcessStatus(stoppedStatus);
+        setProcessHealth(null);
+
+        const startedStatus = await startLlamaServerCommand({
+          executablePath: settings.llamaServerPath,
+          args: buildServerArgs(),
+        });
+        setProcessStatus(startedStatus);
+        setProcessHealth(null);
+        setMessage('llama-server restarted. Waiting for readiness...');
+
+        try {
+          const health = await waitForServerReady({ serverUrl });
+          setProcessHealth(health);
+          setMessage('Server ready.');
+        } catch (readyError) {
+          setMessage(`Server restarted but not ready: ${safeErrorMessage(readyError)}`);
+        }
+      } catch (error) {
+        setMessage(safeErrorMessage(error));
+      }
+    });
+  };
+
+  const stopApplication = async () => {
+    await withBusyAction('stopApplication', async () => {
+      try {
+        if (processStatus.running) {
+          try {
+            await stopLlamaServerCommand();
+          } catch {
+            // Closing the app should still be allowed even if shutdown fails.
+          }
+        }
+
+        await getCurrentWindow().close();
       } catch (error) {
         setMessage(safeErrorMessage(error));
       }
@@ -833,6 +974,7 @@ function App() {
         await startDownloadCommand({
           sourceUrl: resolvedUrl,
           destinationPath: destPath,
+          requestHeaders: headers ?? null,
         });
         const next = await getDownloadStatuses();
         setDownloads(next);
@@ -847,7 +989,8 @@ function App() {
   const isSavingSettings = isBusy('saveSettings');
   const isCheckingHealth = isBusy('checkHealth');
   const isProcessTransitionBusy =
-    isBusy('startProcess') || isBusy('stopProcess');
+    isBusy('startProcess') || isBusy('stopProcess') || isBusy('restartProcess');
+  const isStoppingApplication = isBusy('stopApplication');
   const isSavingPreset = isBusy('savePreset');
   const isAppendingHistory = isBusy('appendHistory');
   const isClearingHistory = isBusy('clearHistory');
@@ -876,17 +1019,83 @@ function App() {
                     ? `Error: ${refreshIssue}`
                     : 'Waiting...'}
             </span>
+            <span className={`status-badge ${isDesktop ? 'success' : remoteApiConfigured ? 'info' : 'neutral'}`}>
+              {connectionLabel}
+            </span>
+            <span className="hint">
+              Mode: {modeLabel}
+            </span>
           </div>
         </div>
-        <button onClick={() => void refreshAll()} disabled={isRefreshing}>
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="row">
+          <button
+            type="button"
+            onClick={() => void refreshAll()}
+            disabled={isRefreshing || !canUseBackend}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button
+            type="button"
+            className="danger"
+            onClick={() => void stopApplication()}
+            disabled={isStoppingApplication || !isDesktop}
+          >
+            {isStoppingApplication ? 'Stopping...' : 'Stop application'}
+          </button>
+        </div>
       </header>
+
+      <section className={`mode-banner ${isDesktop ? 'desktop' : remoteApiConfigured ? 'ready' : 'setup'}`}>
+        <div>
+          <p className="mode-banner-label">{isDesktop ? 'Desktop runtime' : 'Browser mode'}</p>
+          <h2>
+            {isDesktop
+              ? 'Local IPC is active.'
+              : remoteApiConfigured
+                ? 'Remote API connected.'
+                : 'Connect a remote backend to unlock the workspace.'}
+          </h2>
+          <p className="mode-banner-copy">
+            {isDesktop
+              ? 'All controls are connected to the local Tauri runtime.'
+              : remoteApiConfigured
+                ? 'Settings, presets, history, server control, downloads, and chat now use the remote HTTP layer.'
+                : 'Save the remote API base URL and bearer token below to enable the full dashboard.'}
+          </p>
+        </div>
+        <div className="mode-banner-meta">
+          <span className={`status-badge ${isDesktop ? 'success' : remoteApiConfigured ? 'info' : 'neutral'}`}>
+            {isDesktop ? 'Local' : remoteApiConfigured ? 'Connected' : 'Disconnected'}
+          </span>
+          <span className="hint">{modeLabel}</span>
+        </div>
+      </section>
+
+      {!isDesktop ? (
+        <RemoteApiCard
+          baseUrl={remoteApiBaseUrl}
+          baseUrlSourceLabel={baseUrlSourceLabel}
+          token={remoteApiToken}
+          tokenSourceLabel={tokenSourceLabel}
+          isSaving={isBusy('saveRemoteApi') || isBusy('clearRemoteApi')}
+          isConfigured={remoteApiConfigured}
+          onBaseUrlChange={setRemoteApiBaseUrl}
+          onTokenChange={setRemoteApiToken}
+          onSave={() => void saveRemoteApi()}
+          onClear={() => void clearRemoteApi()}
+        />
+      ) : null}
 
       <section className="grid">
         <SettingsCard
           settings={settings}
           isSaving={isSavingSettings}
+          canUseBackend={canUseBackend}
+          canBrowseFiles={isDesktop}
+          serverPathSourceLabel={fieldSourceLabel(settings.llamaServerPath)}
+          modelPathSourceLabel={fieldSourceLabel(settings.modelPath)}
+          downloadFolderSourceLabel={fieldSourceLabel(settings.downloadFolder)}
           onChange={(patch) =>
             setSettings((prev) => ({ ...prev, ...patch }))
           }
@@ -901,13 +1110,16 @@ function App() {
           processStatus={processStatus}
           processHealth={processHealth}
           serverUrl={serverUrl}
+          canUseBackend={canUseBackend}
           isCheckingHealth={isCheckingHealth}
           isProcessTransitionBusy={isProcessTransitionBusy}
           isStartingProcess={isBusy('startProcess')}
           isStoppingProcess={isBusy('stopProcess')}
+          isRestartingProcess={isBusy('restartProcess')}
           isClearingLogs={isClearingLogs}
           onCheckHealth={() => void checkProcessHealth()}
           onStartProcess={() => void startProcess()}
+          onRestartProcess={() => void restartProcess()}
           onStopProcess={() => void stopProcess()}
           onClearLogs={() => void clearLogs()}
           llamaLogs={llamaLogs}
@@ -917,6 +1129,7 @@ function App() {
           presets={presets}
           presetDraft={presetDraft}
           settings={settings}
+          canUseBackend={canUseBackend}
           onNewPreset={resetPresetDraft}
           onResetPresetDraft={resetPresetDraft}
           onPresetDraftChange={setPresetDraft}
@@ -932,6 +1145,7 @@ function App() {
           historyEntries={historyEntries}
           historyRole={historyRole}
           historyContent={historyContent}
+          canUseBackend={canUseBackend}
           onRoleChange={setHistoryRole}
           onContentChange={setHistoryContent}
           onClearHistory={() => void clearHistory()}
@@ -944,9 +1158,16 @@ function App() {
         <DownloaderCard
           downloads={downloads}
           downloadUrl={downloadUrl}
+          canUseBackend={canUseBackend}
+          isDesktop={isDesktop}
+          downloadFolder={settings.downloadFolder}
+          downloadFolderSourceLabel={fieldSourceLabel(settings.downloadFolder)}
           isStartingDownload={isStartingDownload}
           isCancellingDownload={isCancellingDownload}
           onDownloadUrlChange={setDownloadUrl}
+          onDownloadFolderChange={(value) =>
+            setSettings((prev) => ({ ...prev, downloadFolder: value }))
+          }
           onStartDownload={() => void startDownloadWithResolve()}
           onCancelDownload={(downloadId) => void cancelDownload(downloadId)}
           downloadSource={downloadSource}
@@ -970,6 +1191,7 @@ function App() {
           chatPrompt={chatPrompt}
           chatStatuses={chatStatuses}
           chatLog={chatLog}
+          canUseBackend={canUseBackend}
           isStartingChat={isStartingChat}
           isCancellingChat={isCancellingChat}
           canCancelChat={Boolean(activeStream)}
@@ -985,6 +1207,9 @@ function App() {
       </section>
 
       <footer className="status-line" aria-live="polite">
+        <span className={`status-badge ${isDesktop ? 'success' : remoteApiConfigured ? 'info' : 'neutral'}`}>
+          {connectionLabel}
+        </span>
         <span>Bridge: {tauriBridge.status}</span>
         <span>{message}</span>
       </footer>

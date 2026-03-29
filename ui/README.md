@@ -9,7 +9,9 @@ npm install
 npm run dev
 ```
 
-By default this starts on Vite's default port. For Tauri integration, `src-tauri/tauri.conf.json` starts it on port `1420`.
+`npm run dev` starts the app on port `1420` using Vite's native config loader.
+
+For the Tauri desktop shell, use the root `cargo run --manifest-path src-tauri/Cargo.toml` command. Tauri uses the same `npm --prefix ../ui run dev` startup path and loads the app from `http://localhost:1420`.
 
 ## Build
 

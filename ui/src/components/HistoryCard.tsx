@@ -4,6 +4,7 @@ type HistoryCardProps = {
   historyEntries: HistoryEntry[];
   historyRole: HistoryRole;
   historyContent: string;
+  canUseBackend: boolean;
   onRoleChange: (role: HistoryRole) => void;
   onContentChange: (content: string) => void;
   onClearHistory: () => void;
@@ -29,17 +30,21 @@ export function HistoryCard({
   onClearHistory,
   onAppendHistoryEntry,
   formatTimestamp = defaultFormatTimestamp,
+  canUseBackend,
   isClearing = false,
   isAppending = false,
 }: HistoryCardProps) {
+  const isReadOnly = !canUseBackend;
+
   return (
     <article className="card">
       <div className="panel-header">
         <h2>History</h2>
         <button
+          type="button"
           className="secondary"
           onClick={onClearHistory}
-          disabled={isClearing}
+          disabled={isClearing || isReadOnly}
         >
           {isClearing ? 'Clearing...' : 'Clear history'}
         </button>
@@ -73,7 +78,11 @@ export function HistoryCard({
         />
       </label>
       <div className="row">
-        <button onClick={onAppendHistoryEntry} disabled={isAppending}>
+        <button
+          type="button"
+          onClick={onAppendHistoryEntry}
+          disabled={isAppending || isReadOnly}
+        >
           {isAppending ? 'Appending...' : 'Append history'}
         </button>
       </div>

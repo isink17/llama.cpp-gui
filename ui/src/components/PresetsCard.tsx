@@ -6,6 +6,7 @@ type PresetsCardProps = {
   presets: Preset[];
   presetDraft: PresetDraft;
   settings: Settings;
+  canUseBackend: boolean;
   onNewPreset: () => void;
   onResetPresetDraft: () => void;
   onPresetDraftChange: (preset: PresetDraft) => void;
@@ -27,14 +28,17 @@ export function PresetsCard({
   onApplyPreset,
   onEditPreset,
   onDeletePreset,
+  canUseBackend,
   isSaving = false,
   isDeletingPreset = () => false,
 }: PresetsCardProps) {
+  const isReadOnly = !canUseBackend;
+
   return (
     <article className="card">
       <div className="panel-header">
         <h2>Presets</h2>
-        <button className="secondary" onClick={onNewPreset}>
+        <button type="button" className="secondary" onClick={onNewPreset}>
           New preset
         </button>
       </div>
@@ -49,10 +53,14 @@ export function PresetsCard({
         />
       </label>
       <div className="row">
-        <button onClick={onSavePresetFromSettings} disabled={isSaving}>
+        <button
+          type="button"
+          onClick={onSavePresetFromSettings}
+          disabled={isSaving || isReadOnly}
+        >
           {isSaving ? 'Saving...' : 'Save current settings as preset'}
         </button>
-        <button className="secondary" onClick={onResetPresetDraft}>
+        <button type="button" className="secondary" onClick={onResetPresetDraft}>
           Clear
         </button>
       </div>
@@ -79,6 +87,7 @@ export function PresetsCard({
                 </div>
                 <div className="row">
                   <button
+                    type="button"
                     className="secondary"
                     onClick={() => onApplyPreset(preset)}
                     disabled={isDeletingPreset(preset.id)}
@@ -86,6 +95,7 @@ export function PresetsCard({
                     Apply
                   </button>
                   <button
+                    type="button"
                     className="secondary"
                     onClick={() => onEditPreset(preset)}
                     disabled={isDeletingPreset(preset.id)}
@@ -93,9 +103,10 @@ export function PresetsCard({
                     Edit
                   </button>
                   <button
+                    type="button"
                     className="danger"
                     onClick={() => onDeletePreset(preset.id)}
-                    disabled={isDeletingPreset(preset.id)}
+                    disabled={isDeletingPreset(preset.id) || isReadOnly}
                   >
                     {isDeletingPreset(preset.id) ? 'Deleting...' : 'Delete'}
                   </button>
