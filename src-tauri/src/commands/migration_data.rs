@@ -29,7 +29,10 @@ pub fn get_presets(state: State<'_, SharedAppState>) -> Result<Vec<Preset>, Stri
 }
 
 #[tauri::command]
-pub fn save_preset(state: State<'_, SharedAppState>, preset: Preset) -> Result<Vec<Preset>, String> {
+pub fn save_preset(
+    state: State<'_, SharedAppState>,
+    preset: Preset,
+) -> Result<Vec<Preset>, String> {
     validate_preset(&preset)?;
     let persistence = state.persistence.lock();
     let mut presets = persistence.load_presets().map_err(|e| e.to_string())?;
@@ -51,7 +54,10 @@ pub fn save_preset(state: State<'_, SharedAppState>, preset: Preset) -> Result<V
 }
 
 #[tauri::command]
-pub fn delete_preset(state: State<'_, SharedAppState>, preset_id: String) -> Result<Vec<Preset>, String> {
+pub fn delete_preset(
+    state: State<'_, SharedAppState>,
+    preset_id: String,
+) -> Result<Vec<Preset>, String> {
     let preset_id = normalize_preset_id(preset_id)?;
 
     let persistence = state.persistence.lock();

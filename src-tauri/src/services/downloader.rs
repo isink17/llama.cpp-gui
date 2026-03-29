@@ -497,7 +497,11 @@ mod tests {
         let destination = unique_temp_dir("downloader-empty-source").join("model.bin");
 
         let err = service
-            .start_download("   ".to_string(), destination.to_string_lossy().to_string(), None)
+            .start_download(
+                "   ".to_string(),
+                destination.to_string_lossy().to_string(),
+                None,
+            )
             .expect_err("expected empty source_url to fail");
 
         assert_eq!(err, "source_url cannot be empty");

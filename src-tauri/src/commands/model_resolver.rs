@@ -24,7 +24,10 @@ pub fn list_hugging_face_files(
 }
 
 #[tauri::command]
-pub fn list_ollama_tags(state: State<'_, SharedAppState>, input: String) -> Result<Vec<String>, String> {
+pub fn list_ollama_tags(
+    state: State<'_, SharedAppState>,
+    input: String,
+) -> Result<Vec<String>, String> {
     let resolver = state.inner().model_resolver.lock();
     resolver.list_ollama_tags(&input)
 }

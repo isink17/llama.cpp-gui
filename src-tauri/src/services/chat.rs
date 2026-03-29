@@ -195,18 +195,28 @@ fn run_stream_worker(
         "stream": true
     });
 
-    emit_event(&event_sink, ChatStreamEvent {
-        stream_id: stream_id.clone(),
-        event_type: "started".to_string(),
-        data: None,
-        state: ChatStreamState::Streaming,
-        error: None,
-    });
+    emit_event(
+        &event_sink,
+        ChatStreamEvent {
+            stream_id: stream_id.clone(),
+            event_type: "started".to_string(),
+            data: None,
+            state: ChatStreamState::Streaming,
+            error: None,
+        },
+    );
 
     let client = match Client::builder().build() {
         Ok(client) => client,
         Err(err) => {
-            fail_stream(&inner, &event_sink, &endpoint, &stream_id, ChatFailureKind::Other, format!("failed to build HTTP client: {err}"));
+            fail_stream(
+                &inner,
+                &event_sink,
+                &endpoint,
+                &stream_id,
+                ChatFailureKind::Other,
+                format!("failed to build HTTP client: {err}"),
+            );
             return;
         }
     };
@@ -214,13 +224,30 @@ fn run_stream_worker(
     let response = match client.post(&endpoint).json(&payload).send() {
         Ok(response) => response,
         Err(err) => {
-            fail_stream(&inner, &event_sink, &endpoint, &stream_id, classify_reqwest_failure(&err), err);
+            fail_stream(
+                &inner,
+                &event_sink,
+                &endpoint,
+                &stream_id,
+                classify_reqwest_failure(&err),
+                err,
+            );
             return;
         }
     };
 
     if !response.status().is_success() {
-        fail_stream(&inner, &event_sink, &endpoint, &stream_id, ChatFailureKind::Other, format!("chat stream request failed with HTTP status {}", response.status()));
+        fail_stream(
+            &inner,
+            &event_sink,
+            &endpoint,
+            &stream_id,
+            ChatFailureKind::Other,
+            format!(
+                "chat stream request failed with HTTP status {}",
+                response.status()
+            ),
+        );
         return;
     }
 
@@ -236,13 +263,16 @@ fn run_stream_worker(
                 None,
                 bytes_received,
             );
-            emit_event(&event_sink, ChatStreamEvent {
-                stream_id: stream_id.clone(),
-                event_type: "cancelled".to_string(),
-                data: None,
-                state: ChatStreamState::Cancelled,
-                error: None,
-            });
+            emit_event(
+                &event_sink,
+                ChatStreamEvent {
+                    stream_id: stream_id.clone(),
+                    event_type: "cancelled".to_string(),
+                    data: None,
+                    state: ChatStreamState::Cancelled,
+                    error: None,
+                },
+            );
             return;
         }
 
@@ -279,13 +309,16 @@ fn run_stream_worker(
                 None,
                 bytes_received,
             );
-            emit_event(&event_sink, ChatStreamEvent {
-                stream_id: stream_id.clone(),
-                event_type: "completed".to_string(),
-                data: None,
-                state: ChatStreamState::Completed,
-                error: None,
-            });
+            emit_event(
+                &event_sink,
+                ChatStreamEvent {
+                    stream_id: stream_id.clone(),
+                    event_type: "completed".to_string(),
+                    data: None,
+                    state: ChatStreamState::Completed,
+                    error: None,
+                },
+            );
             return;
         }
 
@@ -297,13 +330,16 @@ fn run_stream_worker(
             None,
             bytes_received,
         );
-        emit_event(&event_sink, ChatStreamEvent {
-            stream_id: stream_id.clone(),
-            event_type: "chunk".to_string(),
-            data: Some(chunk),
-            state: ChatStreamState::Streaming,
-            error: None,
-        });
+        emit_event(
+            &event_sink,
+            ChatStreamEvent {
+                stream_id: stream_id.clone(),
+                event_type: "chunk".to_string(),
+                data: Some(chunk),
+                state: ChatStreamState::Streaming,
+                error: None,
+            },
+        );
     }
 
     set_state(
@@ -313,13 +349,16 @@ fn run_stream_worker(
         None,
         bytes_received,
     );
-    emit_event(&event_sink, ChatStreamEvent {
-        stream_id,
-        event_type: "completed".to_string(),
-        data: None,
-        state: ChatStreamState::Completed,
-        error: None,
-    });
+    emit_event(
+        &event_sink,
+        ChatStreamEvent {
+            stream_id,
+            event_type: "completed".to_string(),
+            data: None,
+            state: ChatStreamState::Completed,
+            error: None,
+        },
+    );
 }
 
 fn emit_event(event_sink: &impl ChatEventSink, event: ChatStreamEvent) {
@@ -342,13 +381,16 @@ fn fail_stream(
         Some(error.clone()),
         0,
     );
-    emit_event(event_sink, ChatStreamEvent {
-        stream_id: stream_id.to_string(),
-        event_type: "error".to_string(),
-        data: None,
-        state: ChatStreamState::Failed,
-        error: Some(error),
-    });
+    emit_event(
+        event_sink,
+        ChatStreamEvent {
+            stream_id: stream_id.to_string(),
+            event_type: "error".to_string(),
+            data: None,
+            state: ChatStreamState::Failed,
+            error: Some(error),
+        },
+    );
 }
 
 fn set_state(

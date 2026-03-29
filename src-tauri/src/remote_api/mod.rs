@@ -1,8 +1,8 @@
+use crate::commands::process::{check_llama_server_health, wait_for_server_ready};
 use crate::core::models::{
     ChatStreamRequest, ChatStreamStatus, DownloadStatus, HistoryEntry, LlamaProcessStatus,
     LlamaServerHealthStatus, Preset, Settings,
 };
-use crate::commands::process::{check_llama_server_health, wait_for_server_ready};
 use crate::state::app_state::SharedAppState;
 use crate::state::remote_events::{RemoteEvent, RemoteEventKind};
 use axum::extract::{Path, Query, State};
@@ -174,7 +174,10 @@ async fn run_server(state: RemoteState, bind_addr: SocketAddr) -> Result<(), Str
         .route("/api/settings", get(get_settings).put(put_settings))
         .route("/api/presets", get(get_presets).post(post_preset))
         .route("/api/presets/{preset_id}", delete(delete_preset))
-        .route("/api/history", get(get_history).post(post_history).delete(clear_history))
+        .route(
+            "/api/history",
+            get(get_history).post(post_history).delete(clear_history),
+        )
         .route("/api/downloads", get(get_downloads).post(start_download))
         .route("/api/downloads/{download_id}", delete(cancel_download))
         .route("/api/chat/statuses", get(get_chat_statuses))
@@ -199,7 +202,10 @@ async fn run_server(state: RemoteState, bind_addr: SocketAddr) -> Result<(), Str
         .map_err(|e| format!("remote API server error: {e}"))
 }
 
-async fn health(State(state): State<RemoteState>, headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
+async fn health(
+    State(state): State<RemoteState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
     authorize(&state, &headers)?;
     Ok(Json(json!({ "ok": true })))
 }

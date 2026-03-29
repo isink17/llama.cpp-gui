@@ -45,5 +45,4 @@ impl AppState {
             self.remote_events.publish(kind, payload);
         }
     }
-
 }

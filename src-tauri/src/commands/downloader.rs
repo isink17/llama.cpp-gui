@@ -100,7 +100,9 @@ pub fn get_download_status(
 }
 
 #[tauri::command]
-pub fn get_download_statuses(state: State<'_, SharedAppState>) -> Result<Vec<DownloadStatus>, String> {
+pub fn get_download_statuses(
+    state: State<'_, SharedAppState>,
+) -> Result<Vec<DownloadStatus>, String> {
     let downloader = state.inner().downloader.lock();
     get_download_statuses_with(&*downloader)
 }

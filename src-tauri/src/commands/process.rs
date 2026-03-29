@@ -39,7 +39,9 @@ pub fn stop_llama_server(state: State<'_, SharedAppState>) -> Result<LlamaProces
 }
 
 #[tauri::command]
-pub fn get_llama_server_status(state: State<'_, SharedAppState>) -> Result<LlamaProcessStatus, String> {
+pub fn get_llama_server_status(
+    state: State<'_, SharedAppState>,
+) -> Result<LlamaProcessStatus, String> {
     let mut manager = state.process_manager.lock();
     manager.status()
 }

@@ -28,8 +28,8 @@ use services::model_resolver::ModelResolverService;
 use services::persistence::PersistenceService;
 use services::process_manager::ProcessManager;
 use state::app_state::AppState;
-use tauri::Manager;
 use std::sync::Arc;
+use tauri::Manager;
 
 #[tauri::command]
 fn ping() -> &'static str {
@@ -64,7 +64,8 @@ pub fn run() {
 
             app.manage(Arc::clone(&app_state));
 
-            if let Some(config) = remote_api::RemoteApiConfig::from_env().map_err(|e| e.to_string())?
+            if let Some(config) =
+                remote_api::RemoteApiConfig::from_env().map_err(|e| e.to_string())?
             {
                 remote_api::spawn_remote_api_server(Arc::clone(&app_state), config)
                     .map_err(|e| e.to_string())?;
