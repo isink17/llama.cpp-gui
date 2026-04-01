@@ -25,7 +25,7 @@ This folder tracks the migration to the Tauri multiplatform app.
 
 - Migration CI now includes smoke logging plus a cross-platform validation matrix for Linux, macOS, and Windows.
 - Migration CI uploads per-OS smoke diagnostics artifacts when smoke checks fail in the matrix job.
-- Tag releases now derive a stable artifact name from `LlamaCppDesk-win-x64-<tag-suffix>` and reuse the same derived paths through package/upload/release steps.
+- Tag releases now upload only the platform installers (`.msi`, `.AppImage`, `.dmg`) and publish a GitHub release titled `LlamaCppDesk vX.Y.Z` with a download-first body plus generated changelog notes.
 - Smoke scripts now support an optional cargo-check path. Migration CI runs smoke checks on Unix and Windows before deeper validation, and tag validation uses the smoke script with cargo-check enabled.
 - Health and refresh failure handling now distinguishes timeout, unavailable, and other error cases more clearly in the backend and UI.
 

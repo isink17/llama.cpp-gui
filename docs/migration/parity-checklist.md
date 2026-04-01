@@ -58,4 +58,4 @@ Status key:
 - Link issue IDs near completed items when useful.
 - Latest implemented scope includes presets/history UI, a typed Tauri API client, `migration-ci`, cross-platform smoke coverage, per-OS smoke diagnostics on failure, optional cargo-check smoke validation, and smoke scripts.
 - Error-handling work now distinguishes timeout, unavailable, and other health failures in the backend and surfaces a clearer refresh failure state in the UI.
-- Release workflow now derives a stable tag-based artifact name and shared release paths before upload/publish steps.
+- Release workflow now publishes only the installer formats we want: Windows `.msi`, Linux `.AppImage`, and macOS `.dmg`, with a versioned release title, a simple download section, and generated changelog notes.

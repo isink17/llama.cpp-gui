@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-      - "*"
 
 permissions:
   contents: write
@@ -57,17 +56,17 @@ jobs:
         run: ./tests/smoke/Invoke-SmokeChecks.sh --skip-prereq-check --include-cargo-check
 
   build:
-    name: Build and release (${{ matrix.os }})
+    name: Build packaged artifacts (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-2025
-            publish: true
+            artifact_path: src-tauri/target/release/bundle/**/*.msi
           - os: ubuntu-24.04
-            publish: false
+            artifact_path: src-tauri/target/release/bundle/**/*.AppImage
           - os: macos-15
-            publish: false
+            artifact_path: src-tauri/target/release/bundle/**/*.dmg
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -115,22 +114,44 @@ jobs:
         run: cargo tauri build
 
       - name: Upload build artifacts
-        if: matrix.publish
         uses: actions/upload-artifact@v7
         with:
           name: LlamaCppDesk-${{ runner.os }}-${{ github.ref_name }}
-          path: |
-            src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.exe
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.AppImage
-            src-tauri/target/release/bundle/**/*.deb
-          if-no-files-found: warn
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: LlamaCppDesk-*-${{ github.ref_name }}
+          path: release-artifacts
+          merge-multiple: true
 
       - name: Publish GitHub Release Asset
-        if: matrix.publish
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: LlamaCppDesk ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            Download the installer for your system:
+            - Windows: `.msi`
+            - Linux: `.AppImage`
+            - macOS: `.dmg`
+
+            ## Changelog
+
+            GitHub-generated release notes for `${{ github.ref_name }}` appear below.
           files: |
-            src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.exe
+            release-artifacts/**/*.msi
+            release-artifacts/**/*.AppImage
+            release-artifacts/**/*.dmg

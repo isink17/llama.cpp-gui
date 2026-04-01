@@ -2,6 +2,14 @@
 
 LlamaCppDesk is a Tauri-based cross-platform desktop app for managing and chatting with local llama.cpp models.
 
+If you just want to use the app, download the installer from the GitHub Release page that matches your computer:
+
+- Windows: `.msi`
+- Linux: `.AppImage`
+- macOS: `.dmg`
+
+You do not need the source code unless you want to build or change the app yourself.
+
 ## Project Structure
 
 - Tauri backend: `src-tauri/`
@@ -112,7 +120,8 @@ Manual checklist: `tests/smoke/smoke-checklist.md`
   - Smoke checks and per-OS diagnostics artifacts on failure
 - Tag build workflow: `.github/workflows/build-on-tag.yml`
   - Builds Tauri app via `cargo tauri build`
-  - Uploads artifacts and publishes GitHub release assets
+  - Uploads the platform installers only: Windows `.msi`, Linux `.AppImage`, macOS `.dmg`
+  - Creates a GitHub release named `LlamaCppDesk vX.Y.Z` with a short download section and a changelog, then attaches only those installers
 
 ## Contribution and Workflow
 
