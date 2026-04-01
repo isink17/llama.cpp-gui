@@ -2,7 +2,7 @@
 
 LlamaCppDesk is a Tauri-based cross-platform desktop app for managing and chatting with local llama.cpp models.
 
-If you just want to use the app, download the installer from the GitHub Release page that matches your computer:
+If you just want to use the app, download the installer from the [GitHub Release page](releases) that matches your computer:
 
 - Windows: `.msi`
 - Linux: `.AppImage`
